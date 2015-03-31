@@ -45,6 +45,10 @@ def arg_parse ():
     global all_envs
     global try_offline
     global really
+    global username
+    global password
+    global tenant
+
     usage="""
 Tool to install updates repository into running cluster nodes.
 Usage:
@@ -52,17 +56,35 @@ Usage:
 
 Params:
     --env-id            ID of operational environment
-                        which needs to be updated
+                            which needs to be updated
     --all-envs          Update all operational environments
     --offline           Try to update nodes which are currently offline in fuel
-                        (can cause significant timeouts)
+                            (can cause significant timeouts)
     --update            Make real update (without this nothing will be updated)
+    --user              Username used in Fuel-Keystone authentication
+                            default: admin
+    --pass              Password suitable to username
+                            default: admin
+    --tenant            Suitable tenant
+                            default: admin
 
-(C) Mirantis, 2015
+Examples:
+
+    python nodes_update.py --all-envs --user=op --pass=V3ryS3Cur3
+    Inspects Fuel with op's credentials and shows commands that should be applied
+
+    python nodes_update.py --all-envs --user=op --pass=V3ryS3Cur3 --update
+    Makes real update
+
+Questions: dmeltsaykin@mirantis.com
+
+Mirantis, 2015
 """
     for cmd in sys.argv[1:]:
-        if '--env-id' in cmd:
-            env_id = int(cmd.split('=')[1])
+        if '--env-id' in cmd: env_id = int(cmd.split('=')[1])
+        if '--user' in cmd: username = cmd.split('=')[1]
+        if '--pass' in cmd: password = cmd.split('=')[1]
+        if '--tenant' in cmd: tenant = cmd.split('=')[1]
         if '--all-envs' in cmd: all_envs = True
         if '--offline' in cmd: try_offline = True
         if '--update' in cmd: really = True
@@ -133,4 +155,3 @@ if __name__ == "__main__":
     print ("Following envs will be updated: " + ",".join([str(x) for x in env_list]))
     do_node_update(nodes, env_list)
     sys.exit(0)
-	
