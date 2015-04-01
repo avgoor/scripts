@@ -23,17 +23,12 @@ username = 'admin'
 password = 'admin'
 tenant = 'admin'
 auth = 'http://127.0.0.1:5000/v2.0'
-releases = 'http://127.0.0.1:8000/api/v1/releases/{0}/'
 logfile = '/var/log/nodes-update.log'
 
 repo_install = {
     'ubuntu': """echo -e "\ndeb http://10.20.0.2:8080/updates/ubuntu precise main" >> /etc/apt/sources.list; apt-get update; apt-get upgrade -y""",
     'centos': """yum-config-manager --add-repo=http://10.20.0.2:8080/updates/centos/os/x86_64/; yum update --skip-broken -y --nogpgcheck"""
 }
-
-ubuntu_update = u'http://10.20.0.2:8080/updates/ubuntu precise main'
-centos_update = u'http://10.20.0.2:8080/updates/centos/os/x86_64'
-
 
 env_id = 0
 all_envs = False
