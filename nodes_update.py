@@ -16,6 +16,7 @@ import json
 import sys
 import urllib2
 import subprocess
+import os
 
 from keystoneclient.v2_0 import client
 
@@ -101,6 +102,27 @@ def get_downloads_list ():
         file.close()
     except:
         return (None)
+
+def packages_download ():
+    #check if dst dir exists if not create it (and others)
+    try:
+        os.makedirs(DEST)
+    except os.error as err:
+        if err.args[0] != 17:
+            print ("Error during creating directory {0}: {1}".format(
+                DEST, err.args[1]))
+            return (None)
+
+    retval = 0
+    for pkg in pkgs.values():
+        for t in pkg:
+            cmd="wget -c -P{0} \"{1}\"".format(DEST, t)
+            print ("Running: {0}".format(cmd))
+            retval += os.system(cmd)
+
+    if retval != 0:
+    print ("Some downloads are failed!")
+    return (retval)
 
 def get_nodes ():
     req = urllib2.Request('http://127.0.0.1:8000/api/v1/nodes/')
