@@ -110,14 +110,15 @@ Mirantis, 2015
         print (usage)
         sys.exit(6)
 
-def get_downloads_list ():
+def get_downloads_list():
     global pkgs
     try:
         file=open(path,'r')
         pkgs=json.load(file)
         file.close()
     except:
-        return (None)
+        return None
+    return True
 
 def packages_download ():
     #check if dst dir exists if not create it (and others)
@@ -174,27 +175,31 @@ def do_node_update (nodes, env_list):
     else:
         log = open('/dev/null', 'w')
 
-    for ip,os in to_update:
+    for ip,os_version in to_update:
         log.write("-------------- UPDATING {0} -----------------\n".format(ip))
-        cmdline = ["ssh", "-t", "-t", str(ip), repo_install[os]]
+        cmdline = ["ssh", "-t", "-t", str(ip), repo_install[os_version]]
         print (cmdline)
         log.write(str(cmdline)+"\n")
         if really == True:
             tmp=subprocess.Popen(cmdline, stdin=None, stdout=log, stderr=log)
             tmp.wait()
 	if install_custom == True:
-	    do_install_custom(ip, os, flag=really, logfp=log)
+	    do_install_custom(ip, os_version, flag=really, logfp=log)
         log.write("---------------- DONE -------------------\n")
     log.close()
 
-def do_install_custom (ip, os, flag=False, logfp=None):
+def do_install_custom (ip, os_version, flag=False, logfp=None):
+    install={"ubuntu": "dpkg -i ", "centos": "rpm -Uvh "}
     if pkgs is None: return (None)
-    for package in pkgs[os]:
+    for package in pkgs[os_version]:
 	cmdline=["scp", dest+package.split("/")[-1], str(ip)+":/tmp/"]
 	print (cmdline)
-#    if flag == True:
-#	tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
+#	if flag == True:
+#	    tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
 #	tmp.wait()
+	cmdline=["ssh","-t", "-t", str(ip), "\"{0}\"".format(install[os_version]+"/tmp/"+package.split("/")[-1])]
+	print (cmdline)
+
 
 if __name__ == "__main__":
     arg_parse()
