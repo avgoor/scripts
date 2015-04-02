@@ -198,7 +198,7 @@ def do_install_custom (ip, os_version, flag=False, logfp=None):
         if flag == True:
             tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
             tmp.wait()
-        cmdline=["ssh","-t", "-t", str(ip), "\'{0}\'".format(install[os_version]+"/tmp/"+package.split("/")[-1])]
+        cmdline=["ssh","-t", "-t", str(ip), "{0}".format(install[os_version]+"/tmp/"+package.split("/")[-1])]
         print (cmdline)
         if flag == True:
             tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
