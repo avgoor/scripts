@@ -36,7 +36,9 @@ all_envs = False
 try_offline = False
 really = False
 
-PATH="packages.download"
+path = "custom.pkg"
+install_custom = False
+pkgs = None
 
 def arg_parse ():
     global env_id
@@ -46,6 +48,8 @@ def arg_parse ():
     global username
     global password
     global tenant
+    global path
+    global install_custom
 
     usage="""
 Tool to install updates repository into running cluster nodes.
@@ -65,6 +69,11 @@ Params:
                             default: admin
     --tenant            Suitable tenant
                             default: admin
+    --with-custom       Download and install custom packages from json-file
+                            default filename: custom.pkg
+
+    --file              Name of the config file in json-format with list of
+                        custom packages to download and install
 
 Examples:
 
@@ -78,6 +87,7 @@ Questions: dmeltsaykin@mirantis.com
 
 Mirantis, 2015
 """
+
     for cmd in sys.argv[1:]:
         if '--env-id' in cmd: env_id = int(cmd.split('=')[1])
         if '--user' in cmd: username = cmd.split('=')[1]
@@ -86,6 +96,9 @@ Mirantis, 2015
         if '--all-envs' in cmd: all_envs = True
         if '--offline' in cmd: try_offline = True
         if '--update' in cmd: really = True
+        if '--file' in cmd: path = cmd.split('=')[1]
+        if '--with-custom' in cmd: install_custom = True
+
     if (env_id > 0) and (all_envs == True):
         print ("You should only select either --env-id or --all-envs.")
         print (usage)
@@ -96,8 +109,9 @@ Mirantis, 2015
         sys.exit(6)
 
 def get_downloads_list ():
+    global pkgs
     try:
-        file=open(PATH,'r')
+        file=open(path,'r')
         pkgs=json.load(file)
         file.close()
     except:
