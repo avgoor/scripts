@@ -35,6 +35,8 @@ all_envs = False
 try_offline = False
 really = False
 
+PATH="packages.download"
+
 def arg_parse ():
     global env_id
     global all_envs
@@ -91,6 +93,14 @@ Mirantis, 2015
         print ("At least one option (env-id or all-envs) must be set.")
         print (usage)
         sys.exit(6)
+
+def get_downloads_list ():
+    try:
+        file=open(PATH,'r')
+        pkgs=json.load(file)
+        file.close()
+    except:
+        return (None)
 
 def get_nodes ():
     req = urllib2.Request('http://127.0.0.1:8000/api/v1/nodes/')
