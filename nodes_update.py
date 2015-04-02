@@ -39,6 +39,8 @@ really = False
 path = "custom.pkg"
 install_custom = False
 pkgs = None
+dest = "/var/www/nailgun/updates/custom/"
+
 
 def arg_parse ():
     global env_id
@@ -120,22 +122,22 @@ def get_downloads_list ():
 def packages_download ():
     #check if dst dir exists if not create it (and others)
     try:
-        os.makedirs(DEST)
+        os.makedirs(dest)
     except os.error as err:
         if err.args[0] != 17:
             print ("Error during creating directory {0}: {1}".format(
-                DEST, err.args[1]))
+                dest, err.args[1]))
             return (None)
 
     retval = 0
     for pkg in pkgs.values():
         for t in pkg:
-            cmd="wget -c -P{0} \"{1}\"".format(DEST, t)
+            cmd="wget -c -P{0} \"{1}\"".format(dest, t)
             print ("Running: {0}".format(cmd))
             retval += os.system(cmd)
 
     if retval != 0:
-    print ("Some downloads are failed!")
+	print ("Some downloads are failed!")
     return (retval)
 
 def get_nodes ():
@@ -160,6 +162,12 @@ def do_node_update (nodes, env_list):
                 elif node['online'] == True:
                     to_update.add((node['ip'], node['os_platform']))
 
+    if install_custom == True:
+	if get_downloads_list() is not None:
+	    packages_download()
+	else:
+	    print ("Unable to get packages list from file {0}".format(path))
+
     print (to_update)
     if really == True:
         log = open(logfile, 'w',0)
@@ -174,9 +182,19 @@ def do_node_update (nodes, env_list):
         if really == True:
             tmp=subprocess.Popen(cmdline, stdin=None, stdout=log, stderr=log)
             tmp.wait()
+	if install_custom == True:
+	    do_install_custom(ip, os, flag=really, logfp=log)
         log.write("---------------- DONE -------------------\n")
     log.close()
 
+def do_install_custom (ip, os, flag=False, logfp=None):
+    if pkgs is None: return (None)
+    for package in pkgs[os]:
+	cmdline=["scp", dest+package.split("/")[-1], str(ip)+":/tmp/"]
+	print (cmdline)
+#    if flag == True:
+#	tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
+#	tmp.wait()
 
 if __name__ == "__main__":
     arg_parse()
