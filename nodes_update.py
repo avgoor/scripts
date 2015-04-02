@@ -138,7 +138,7 @@ def packages_download ():
             retval += os.system(cmd)
 
     if retval != 0:
-	print ("Some downloads are failed!")
+        print ("Some downloads are failed!")
     return (retval)
 
 def get_nodes ():
@@ -164,10 +164,10 @@ def do_node_update (nodes, env_list):
                     to_update.add((node['ip'], node['os_platform']))
 
     if install_custom == True:
-	if get_downloads_list() is not None:
-	    packages_download()
-	else:
-	    print ("Unable to get packages list from file {0}".format(path))
+        if get_downloads_list() is not None:
+            packages_download()
+        else:
+            print ("Unable to get packages list from file {0}".format(path))
 
     print (to_update)
     if really == True:
@@ -183,22 +183,26 @@ def do_node_update (nodes, env_list):
         if really == True:
             tmp=subprocess.Popen(cmdline, stdin=None, stdout=log, stderr=log)
             tmp.wait()
-	if install_custom == True:
-	    do_install_custom(ip, os_version, flag=really, logfp=log)
+        if install_custom == True:
+            do_install_custom(ip, os_version, flag=really, logfp=log)
         log.write("---------------- DONE -------------------\n")
     log.close()
 
 def do_install_custom (ip, os_version, flag=False, logfp=None):
-    install={"ubuntu": "dpkg -i ", "centos": "rpm -Uvh "}
+    install={"ubuntu": "/usr/bin/dpkg -i ", "centos": "rpm -Uvh "}
     if pkgs is None: return (None)
+
     for package in pkgs[os_version]:
-	cmdline=["scp", dest+package.split("/")[-1], str(ip)+":/tmp/"]
-	print (cmdline)
-#	if flag == True:
-#	    tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
-#	tmp.wait()
-	cmdline=["ssh","-t", "-t", str(ip), "\"{0}\"".format(install[os_version]+"/tmp/"+package.split("/")[-1])]
-	print (cmdline)
+        cmdline=["scp", dest+package.split("/")[-1], str(ip)+":/tmp/"]
+        print (cmdline)
+        if flag == True:
+            tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
+            tmp.wait()
+        cmdline=["ssh","-t", "-t", str(ip), "\'{0}\'".format(install[os_version]+"/tmp/"+package.split("/")[-1])]
+        print (cmdline)
+        if flag == True:
+            tmp = subprocess.Popen(cmdline, stdin=None, stdout=logfp, stderr=logfp)
+            tmp.wait()
 
 
 if __name__ == "__main__":
