@@ -8,6 +8,7 @@ import libvirt
 import netaddr
 
 cfg = dict()
+# required vars
 cfg["ENV_NAME"] = os.getenv("ENV_NAME")
 cfg["ISO_URL"] = os.getenv("ISO_URL")
 
@@ -33,6 +34,9 @@ cfg["ADMIN_CPU"] = int(os.getenv("ADMIN_CPU", 2))
 cfg["SLAVE_RAM"] = int(os.getenv("SLAVE_RAM", 3072))
 cfg["SLAVE_CPU"] = int(os.getenv("SLAVE_CPU", 1))
 cfg["NODES_COUNT"] = int(os.getenv("NODES_COUNT", 5))
+cfg["NODES_DISK_SIZE"] = int(os.getenv("NODES_DISK_SIZE", 50))
+
+cfg["STORAGE_POOL"] = os.getenv("STORAGE_POOL", "default")
 
 """ Type of deployment:
         TBD
@@ -202,11 +206,40 @@ def define_nets():
     print ("Networks have been successfuly created.")
 
 
+def volume_create(name):
+    vol_template = \
+        "<volume type='file'>\n" \
+        " <name>{vol_name}</name>\n" \
+        " <allocation>0</allocation>\n" \
+        " <capacity unit='G'>{vol_size}</capacity>\n" \
+        " <target>\n" \
+        "  <format type='qcow2'/>\n" \
+        " </target>\n" \
+        "</volume>\n"
+    try:
+        pool = vconn.storagePoolLookupByName(cfg["STORAGE_POOL"])
+    except:
+        print("\nERROR: libvirt`s storage pool '{0}' is not accessible!"
+              .format(cfg["STORAGE_POOL"]))
+        sys.exit(12)
+
+    volume = vol_template.format(vol_name=name, vol_size=cfg["NODES_DISK_SIZE"])
+
+    try:
+        pool.createXML(volume)
+    except:
+        print("\nERROR: unable to create volume '{0}'!"
+              .format(name))
+        sys.exit(13)
+    print("Created volume from XML:\n\n{0}".format(volume))
+
+
 def define_nodes():
     pass
 
 
 def start_admin_node():
+    volume_create(cfg["ENV_NAME"]+"_adm")
     pass
 
 
