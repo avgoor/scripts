@@ -47,7 +47,7 @@ db = None
 
 
 try:
-    vconn = libvirt.open()
+    vconn = libvirt.open("qemu:///system")
 except:
     print ("\nERRROR: libvirt is inaccessible!")
     sys.exit(10)
@@ -209,7 +209,7 @@ def define_nets():
 def volume_create(name):
     vol_template = \
         "<volume type='file'>\n" \
-        " <name>{vol_name}</name>\n" \
+        " <name>{vol_name}.img</name>\n" \
         " <allocation>0</allocation>\n" \
         " <capacity unit='G'>{vol_size}</capacity>\n" \
         " <target>\n" \
@@ -226,20 +226,144 @@ def volume_create(name):
     volume = vol_template.format(vol_name=name, vol_size=cfg["NODES_DISK_SIZE"])
 
     try:
-        pool.createXML(volume)
+        vol_object = pool.createXML(volume)
     except:
         print("\nERROR: unable to create volume '{0}'!"
               .format(name))
         sys.exit(13)
     print("Created volume from XML:\n\n{0}".format(volume))
+    return vol_object
 
 
 def define_nodes():
     pass
 
 
-def start_admin_node():
-    volume_create(cfg["ENV_NAME"]+"_adm")
+def start_node(name, admin=False):
+    vol_obj = volume_create(name)
+
+    node_template_xml = """
+<domain type='kvm'>
+  <name>{name}</name>
+  <memory unit='KiB'>{memory}</memory>
+  <currentMemory unit='KiB'>{memory}</currentMemory>
+  <vcpu placement='static'>{vcpu}</vcpu>
+  <os>
+    <type arch='x86_64' machine='pc-i440fx-trusty'>hvm</type>
+    <boot dev='{first_boot}'/>
+    <boot dev='{second_boot}'/>
+    <bios rebootTimeout='5000'/>
+  </os>
+  <cpu mode='host-model'>
+    <model fallback='forbid'/>
+  </cpu>
+  <clock offset='utc'>
+    <timer name='rtc' tickpolicy='catchup' track='wall'>
+      <catchup threshold='123' slew='120' limit='10000'/>
+    </timer>
+    <timer name='pit' tickpolicy='delay'/>
+    <timer name='hpet' present='no'/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' cache='unsafe'/>
+      <source file='{hd_volume}'/>
+      <target dev='sda' bus='virtio'/>
+    </disk>
+{iso}
+    <controller type='usb' index='0' model='nec-xhci'>
+      <alias name='usb0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x08' function='0x0'/>
+    </controller>
+    <controller type='pci' index='0' model='pci-root'>
+      <alias name='pci.0'/>
+    </controller>
+    <controller type='ide' index='0'>
+      <alias name='ide0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/>
+    </controller>
+    <interface type='network'>
+      <source network='{admin_net}'/>
+      <target dev='dev'/>
+      <model type='virtio'/>
+      <alias name='net0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+    </interface>
+    <interface type='network'>
+      <source network='{public_net}'/>
+      <model type='virtio'/>
+      <alias name='net1'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/>
+    </interface>
+    <serial type='pty'>
+      <source path='/dev/pts/6'/>
+      <target port='0'/>
+      <alias name='serial0'/>
+    </serial>
+    <console type='pty' tty='/dev/pts/6'>
+      <source path='/dev/pts/6'/>
+      <target type='serial' port='0'/>
+      <alias name='serial0'/>
+    </console>
+    <input type='mouse' bus='ps2'/>
+    <input type='keyboard' bus='ps2'/>
+    <graphics type='vnc' port='5900' autoport='yes' listen='0.0.0.0'>
+      <listen type='address' address='0.0.0.0'/>
+    </graphics>
+    <video>
+      <model type='vga' vram='9216' heads='1'/>
+      <alias name='video0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/>
+    </video>
+    <memballoon model='virtio'>
+      <alias name='balloon0'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x0a' function='0x0'/>
+    </memballoon>
+  </devices>
+</domain>
+    """
+    if admin:
+
+        vcpu = cfg["ADMIN_CPU"]
+        memory = cfg["ADMIN_RAM"] * 1024
+        first_boot = "hd"
+        second_boot = "cdrom"
+        iso = """    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw' cache='unsafe'/>
+      <source file='{iso_path}'/>
+      <target dev='sdb' bus='ide' tray='open'/>
+      <readonly/>
+    </disk>""".format(iso_path=cfg["ISO_PATH"])
+
+    else:
+
+        vcpu = cfg["SLAVE_CPU"]
+        memory = cfg["SLAVE_RAM"] * 1024
+        first_boot = "hd"
+        second_boot = "pxe"
+        iso = ""
+
+    admin_net = cfg["ADMIN_SUBNET"]
+    public_net = cfg["PUBLIC_SUBNET"]
+    hd_volume = vol_obj.path()
+
+    xml = node_template_xml.format(
+        name=name,
+        vcpu=vcpu,
+        memory=memory,
+        first_boot=first_boot,
+        second_boot=second_boot,
+        hd_volume=hd_volume,
+        iso=iso,
+        admin_net=admin_net,
+        public_net=public_net
+    )
+
+    print (xml)
+
     pass
 
 
@@ -290,7 +414,8 @@ def main():
 
     define_nodes()
 
-    start_admin_node()
+    cfg["ISO_PATH"] = "/srv/iso/bulk"
+    start_node(cfg["ENV_NAME"]+"_adm", admin=True)
 
     send_keys()
 
