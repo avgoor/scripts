@@ -182,7 +182,7 @@ def define_nets():
     print ("Prepared admin_net xml:\n\n{0}".format(net_xml))
 
     try:
-        vconn.networkCreateXML(net_xml)
+        cfg["ADM_SUBNET_OBJ"] = vconn.networkCreateXML(net_xml)
     except:
         print ("\nERROR: Unable to create admin subnet in libvirt!")
         sys.exit(11)
@@ -198,7 +198,7 @@ def define_nets():
     print ("Prepared public_net xml:\n\n{0}".format(net_xml))
 
     try:
-        vconn.networkCreateXML(net_xml)
+        cfg["PUB_SUBNET_OBJ"] = vconn.networkCreateXML(net_xml)
     except:
         print ("\nERROR: Unable to create public subnet in libvirt!")
         sys.exit(11)
@@ -287,15 +287,12 @@ def start_node(name, admin=False):
     </controller>
     <interface type='network'>
       <source network='{admin_net}'/>
-      <target dev='dev'/>
       <model type='virtio'/>
-      <alias name='net0'/>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
     </interface>
     <interface type='network'>
       <source network='{public_net}'/>
       <model type='virtio'/>
-      <alias name='net1'/>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x04' function='0x0'/>
     </interface>
     <serial type='pty'>
@@ -334,7 +331,7 @@ def start_node(name, admin=False):
         iso = """    <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw' cache='unsafe'/>
       <source file='{iso_path}'/>
-      <target dev='sdb' bus='ide' tray='open'/>
+      <target dev='hdb' bus='ide'/>
       <readonly/>
     </disk>""".format(iso_path=cfg["ISO_PATH"])
 
@@ -346,8 +343,8 @@ def start_node(name, admin=False):
         second_boot = "pxe"
         iso = ""
 
-    admin_net = cfg["ADMIN_SUBNET"]
-    public_net = cfg["PUBLIC_SUBNET"]
+    admin_net = cfg["ADM_SUBNET_OBJ"].name()
+    public_net = cfg["PUB_SUBNET_OBJ"].name()
     hd_volume = vol_obj.path()
 
     xml = node_template_xml.format(
@@ -362,8 +359,12 @@ def start_node(name, admin=False):
         public_net=public_net
     )
 
-    print (xml)
-
+    print ("Prepared XML for node:\n{0}".format(xml))
+    try:
+        vconn.createXML(xml)
+    except Exception as e:
+        print (e)
+        sys.exit(100)
     pass
 
 
@@ -414,7 +415,7 @@ def main():
 
     define_nodes()
 
-    cfg["ISO_PATH"] = "/srv/iso/bulk"
+    cfg["ISO_PATH"] = "/srv/downloads/MirantisOpenStack-6.0.iso"
     start_node(cfg["ENV_NAME"]+"_adm", admin=True)
 
     send_keys()
