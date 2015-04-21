@@ -2,10 +2,14 @@
 
 import os
 import sqlite3
+import subprocess
 import sys
+import time
 
 import libvirt
 import netaddr
+
+import scancodes
 
 cfg = dict()
 # required vars
@@ -37,6 +41,13 @@ cfg["NODES_COUNT"] = int(os.getenv("NODES_COUNT", 5))
 cfg["NODES_DISK_SIZE"] = int(os.getenv("NODES_DISK_SIZE", 50))
 
 cfg["STORAGE_POOL"] = os.getenv("STORAGE_POOL", "default")
+
+cfg["ISO_DIR"] = os.getenv("PWD") + "/" + os.getenv("ISO_DIR", "iso") + "/"
+cfg["ISO_PATH"] = cfg["ISO_DIR"] \
+                + cfg["ISO_URL"] \
+                .split("/")[-1] \
+                .split(".torrent")[0]
+
 
 """ Type of deployment:
         TBD
@@ -151,6 +162,35 @@ def get_free_subnet():
     db.commit()
     return True
 
+
+def download_iso():
+    try:
+        os.makedirs(cfg["ISO_DIR"])
+    except os.error as err:
+        if err.args[0] != 17:
+            print ("Error during creating directory {0}: {1}".format(
+                dest, err.args[1]))
+            sys.exit(15)
+
+    cmd = ["aria2c", "-d", cfg["ISO_DIR"], "--seed-time=0",
+           "--allow-overwrite=true","--force-save=true",
+           "--auto-file-renaming=false","--allow-piece-length-change=true",
+           cfg["ISO_URL"]
+    ]
+
+    proc = subprocess.Popen(
+        cmd,
+        stdin=None,
+        stdout=None,
+        stderr=None,
+        bufsize=1
+    )
+    proc.wait()
+
+    if proc.returncode == 0:
+        print("\nISO successfuly downloaded")
+    else:
+        print("\nERROR: Cannot download ISO")
 
 def register_env():
     cursor = db.cursor()
@@ -361,14 +401,43 @@ def start_node(name, admin=False):
 
     print ("Prepared XML for node:\n{0}".format(xml))
     try:
-        vconn.createXML(xml)
+        instance = vconn.createXML(xml)
     except Exception as e:
         print (e)
         sys.exit(100)
+
+    send_keys(instance)
+
+
     pass
 
 
-def send_keys():
+def send_keys(instance):
+    keys = (
+        "<Wait>\n"
+        "<Esc><Enter>\n"
+        "<Wait>\n"
+        "vmlinuz initrd=initrd.img ks=cdrom:/ks.cfg\n"
+        " ip={ip}\n"
+        " netmask={netmask}\n"
+        " gw={gw}\n"
+        " dns1=8.8.8.8\n"
+        " hostname={hostname}\n"
+        " <Enter>\n"
+    ).format(
+        ip=str(cfg["ADMIN_SUBNET"].ip + 2),
+        netmask=str(cfg["ADMIN_SUBNET"].netmask),
+        gw=str(cfg["ADMIN_SUBNET"].ip + 1),
+        hostname="testing"
+    )
+    print (keys)
+    key_codes = scancodes.from_string(str(keys))
+    for key_code in key_codes:
+        if isinstance(key_code[0],str):
+            if key_code[0] == 'wait':
+                time.sleep(1)
+            continue
+        instance.sendKey(0, 0, list(key_code), len(key_code), 0)
     pass
 
 
@@ -394,6 +463,10 @@ def main():
         sys.exit(0)
     print("Starting script with following options:\n")
     pprint_dict(cfg)
+
+    download_iso()
+
+
     if cfg["ENV_NAME"] is None:
         print ("\nERROR: $ENV_NAME must be set!")
         sys.exit(1)
@@ -415,10 +488,7 @@ def main():
 
     define_nodes()
 
-    cfg["ISO_PATH"] = "/srv/downloads/MirantisOpenStack-6.0.iso"
     start_node(cfg["ENV_NAME"]+"_adm", admin=True)
-
-    send_keys()
 
     wait_for_api_is_ready()
 
