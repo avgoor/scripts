@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -163,20 +164,64 @@ def get_free_subnet():
     return True
 
 
+def get_free_subnet_from_libvirt():
+    occupied_nets = set()
+    for net in vconn.listAllNetworks():
+        res = re.findall("<ip address=\'(.*)\' prefix=\'(.*)\'>",
+                         net.XMLDesc())
+        if res[0]:
+            occupied_nets.add(netaddr.IPNetwork(
+                "{0}/{1}".format(res[0][0], res[0][1])))
+
+    admin_subnets = set(
+        x for x in netaddr.IPNetwork(cfg["ADMIN_NET"])
+                          .subnet(cfg["ADM_SUBNET_SIZE"])
+        if x not in occupied_nets
+    )
+    public_subnets = set(
+        x for x in netaddr.IPNetwork(cfg["PUBLIC_NET"])
+                          .subnet(cfg["PUB_SUBNET_SIZE"])
+        if x not in occupied_nets
+    )
+
+    if not admin_subnets or not public_subnets:
+        print ("\nERROR: No more NETWORKS to associate!")
+        return False
+
+    cfg["ADMIN_SUBNET"] = sorted(admin_subnets)[0]
+    cfg["PUBLIC_SUBNET"] = sorted(public_subnets)[0]
+    print (
+        "Following subnets will be used:\n"
+        " ADMIN_SUBNET:   {0}\n"
+        " PUBLIC_SUBNET:  {1}\n".format(cfg["ADMIN_SUBNET"],
+                                        cfg["PUBLIC_SUBNET"])
+    )
+    sql_query = [
+        (str(cfg["ADMIN_SUBNET"]), str(cfg["ENV_NAME"]),
+         str(cfg["ENV_NAME"] + "_adm")),
+        (str(cfg["PUBLIC_SUBNET"]), str(cfg["ENV_NAME"]),
+         str(cfg["ENV_NAME"] + "_pub"))
+    ]
+    print sql_query
+    cursor = db.cursor()
+    cursor.executemany("INSERT INTO nets VALUES (?,?,?)", sql_query)
+    db.commit()
+    return True
+
+
 def download_iso():
     try:
         os.makedirs(cfg["ISO_DIR"])
     except os.error as err:
         if err.args[0] != 17:
             print ("Error during creating directory {0}: {1}".format(
-                dest, err.args[1]))
+                cfg["ISO_DIR"], err.args[1]))
             sys.exit(15)
 
     cmd = ["aria2c", "-d", cfg["ISO_DIR"], "--seed-time=0",
-           "--allow-overwrite=true","--force-save=true",
-           "--auto-file-renaming=false","--allow-piece-length-change=true",
-           cfg["ISO_URL"]
-    ]
+           "--allow-overwrite=true", "--force-save=true",
+           "--auto-file-renaming=false", "--allow-piece-length-change=true",
+           cfg["ISO_URL"]]
 
     proc = subprocess.Popen(
         cmd,
@@ -191,6 +236,7 @@ def download_iso():
         print("\nISO successfuly downloaded")
     else:
         print("\nERROR: Cannot download ISO")
+        sys.exit(20)
 
 def register_env():
     cursor = db.cursor()
@@ -409,9 +455,6 @@ def start_node(name, admin=False):
     send_keys(instance)
 
 
-    pass
-
-
 def send_keys(instance):
     keys = (
         "<Wait>\n"
@@ -433,7 +476,7 @@ def send_keys(instance):
     print (keys)
     key_codes = scancodes.from_string(str(keys))
     for key_code in key_codes:
-        if isinstance(key_code[0],str):
+        if isinstance(key_code[0], str):
             if key_code[0] == 'wait':
                 time.sleep(1)
             continue
@@ -479,7 +522,8 @@ def main():
         print ("\nERROR: $ENV_NAME must be unique! {0} already exists"
                .format(cfg["ENV_NAME"]))
         sys.exit(4)
-    if not get_free_subnet():
+
+    if not get_free_subnet_from_libvirt():
         sys.exit(3)
 
     register_env()
