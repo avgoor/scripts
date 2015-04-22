@@ -238,6 +238,7 @@ def download_iso():
         print("\nERROR: Cannot download ISO")
         sys.exit(20)
 
+
 def register_env():
     cursor = db.cursor()
     cursor.execute(
@@ -426,7 +427,7 @@ def start_node(name, admin=False):
         vcpu = cfg["SLAVE_CPU"]
         memory = cfg["SLAVE_RAM"] * 1024
         first_boot = "hd"
-        second_boot = "pxe"
+        second_boot = "network"
         iso = ""
 
     admin_net = cfg["ADM_SUBNET_OBJ"].name()
@@ -451,8 +452,8 @@ def start_node(name, admin=False):
     except Exception as e:
         print (e)
         sys.exit(100)
-
-    send_keys(instance)
+    if admin:
+        send_keys(instance)
 
 
 def send_keys(instance):
@@ -485,11 +486,69 @@ def send_keys(instance):
 
 
 def wait_for_api_is_ready():
-    pass
+    time.sleep(60 * 10)
+
+
+def inject_ifconfig_ssh():
+    rule = "DEVICE=eth1\n" \
+           "ONBOOT=yes\n" \
+           "BOOTPROTO=static\n" \
+           "NM_CONTROLLED=no\n" \
+           "IPADDR={ip}\n" \
+           "PREFIX={prefix}\n" \
+           "GATEWAY={gw}\n" \
+           .format(
+                ip=str(cfg["PUBLIC_SUBNET"].ip + 2),
+                prefix=str(cfg["PUBLIC_SUBNET"].prefixlen),
+                gw=str(cfg["PUBLIC_SUBNET"].ip + 1)
+            )
+    print ("\nTo fuel:\n{0}".format(rule))
+    ifcfg = "/etc/sysconfig/network-scripts/ifcfg-eth1"
+    psw = cfg["FUEL_SSH_PASSWORD"]
+    usr = cfg["FUEL_SSH_USERNAME"]
+    admip = str(cfg["ADMIN_SUBNET"].ip + 2)
+    cmd = [
+        "sshpass",
+        "-p",
+        psw,
+        "ssh",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "{usr}@{admip}".format(usr=usr, admip=admip),
+        "cat - > {ifcfg} ; /etc/init.d/network restart".format(ifcfg=ifcfg)
+    ]
+
+    retries = 0
+    while True:
+        if retries > 10:
+            return False
+
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=None
+        )
+
+        print(proc.communicate(input=rule)[0])
+
+        proc.wait()
+
+        if proc.returncode == 0:
+            print("Inject successful")
+            return True
+        else:
+            retries += 1
+            time.sleep(60)
 
 
 def start_slaves():
-    pass
+    for num in range(cfg["NODES_COUNT"]):
+        name = "{0}_slave_{1}".format(cfg["ENV_NAME"], num)
+        print ("Starting: {0}".format(name))
+        start_node(name)
 
 
 def configure_nailgun():
@@ -500,15 +559,67 @@ def wait_for_cluster_is_ready():
     pass
 
 
+def cleanup():
+    if env_is_available():
+        print("{0} environment is not exist!".format(cfg["ENV_NAME"]))
+        sys.exit(127)
+
+    for vm in vconn.listAllDomains():
+        if vm.name().startswith(cfg["ENV_NAME"]):
+            vm.destroy()
+    for net in vconn.listAllNetworks():
+        if net.name().startswith(cfg["ENV_NAME"]):
+            net.destroy()
+    for vol in vconn.storagePoolLookupByName(cfg["STORAGE_POOL"]) \
+                    .listAllVolumes():
+        if vol.name().startswith(cfg["ENV_NAME"]):
+            vol.delete()
+
+    cursor = db.cursor()
+    cursor.execute(
+        "DELETE FROM nets WHERE env='{0}'".format(cfg["ENV_NAME"])
+    )
+    cursor.execute(
+        "DELETE FROM envs WHERE env='{0}'".format(cfg["ENV_NAME"])
+    )
+    db.commit()
+
+
+def print_summary():
+    summary = """
+========== SUMMARY ==========
+PLEASE USE FOLLOWING CONFIGURATION
+FOR CLUSTER'S NETWORKS
+
+PUBLIC:
+               START            END
+  IP RANGE  {pub_start}     {pub_end}
+  CIDR      {pub_subnet}
+  GATEWAY   {gw}
+  FLOATING  {float_start}   {float_end}""" \
+    .format(
+        pub_start=str(cfg["PUBLIC_SUBNET"].ip + 3),
+        pub_end=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
+        pub_subnet=str(cfg["PUBLIC_SUBNET"]),
+        gw=str(cfg["PUBLIC_SUBNET"].ip + 1),
+        float_start=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
+        float_end=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
+    )
+    print(summary)
+
+
 def main():
+    initialize_database()
+    print("\nDatabase ready.\n")
     if '--destroy' in sys.argv:
         print("Destroying {0}".format(cfg["ENV_NAME"]))
+        cleanup()
+        db.close()
         sys.exit(0)
     print("Starting script with following options:\n")
     pprint_dict(cfg)
 
     download_iso()
-
 
     if cfg["ENV_NAME"] is None:
         print ("\nERROR: $ENV_NAME must be set!")
@@ -516,8 +627,6 @@ def main():
     if cfg["ISO_URL"] is None:
         print ("\nERROR: $ISO_URL must be set!")
         sys.exit(2)
-    initialize_database()
-    print("\nDatabase ready.\n")
     if not env_is_available():
         print ("\nERROR: $ENV_NAME must be unique! {0} already exists"
                .format(cfg["ENV_NAME"]))
@@ -532,11 +641,15 @@ def main():
 
     define_nodes()
 
-    start_node(cfg["ENV_NAME"]+"_adm", admin=True)
+    start_node(cfg["ENV_NAME"]+"_admin", admin=True)
 
     wait_for_api_is_ready()
 
+    inject_ifconfig_ssh()
+
     start_slaves()
+
+    print_summary()
 
     configure_nailgun()
 
