@@ -606,6 +606,12 @@ PUBLIC:
         float_end=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
     )
     print(summary)
+    #os.uname()[1] - hostname
+    for dom in vconn.listAllDomains():
+        if dom.name().startswith(cfg["ENV_NAME"]):
+            vncport = re.findall("graphics\stype=\'vnc\'\sport=\'(\d+)\'",  dom.XMLDesc())[0]
+            hostname = os.uname()[1]
+            print("  {0:30} {1}:{2}".format(dom.name(), hostname, vncport))
 
 
 def main():
@@ -656,6 +662,6 @@ def main():
     wait_for_cluster_is_ready()
 
     db.close()
-
+    vconn.close()
 if __name__ == "__main__":
     main()
