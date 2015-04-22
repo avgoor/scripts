@@ -19,7 +19,7 @@ cfg["ISO_URL"] = os.getenv("ISO_URL")
 
 # networks defenition
 cfg["ADMIN_NET"] = os.getenv("ADMIN_NET", "10.88.0.0/16")
-cfg["PUBLIC_NET"] = os.getenv("PUBLIC_NET", "172.18.254.0/24")
+cfg["PUBLIC_NET"] = os.getenv("PUBLIC_NET", "172.16.59.0/24")
 cfg["PUB_SUBNET_SIZE"] = int(os.getenv("PUB_SUBNET_SIZE", 28))
 cfg["ADM_SUBNET_SIZE"] = int(os.getenv("ADM_SUBNET_SIZE", 28))
 
@@ -587,7 +587,7 @@ def cleanup():
 
 def print_summary():
     summary = """
-========== SUMMARY ==========
+=================================== SUMMARY ===================================
 PLEASE USE FOLLOWING CONFIGURATION
 FOR CLUSTER'S NETWORKS
 
@@ -607,11 +607,17 @@ PUBLIC:
     )
     print(summary)
     #os.uname()[1] - hostname
+    print ("\nFUEL ACCESS:\n\t\t\thttp://{0}:8000".format(
+        str(cfg["PUBLIC_SUBNET"].ip + 2)))
+    print ("\nVNC CONSOLES:\n")
     for dom in vconn.listAllDomains():
         if dom.name().startswith(cfg["ENV_NAME"]):
             vncport = re.findall("graphics\stype=\'vnc\'\sport=\'(\d+)\'",  dom.XMLDesc())[0]
             hostname = os.uname()[1]
             print("  {0:30} {1}:{2}".format(dom.name(), hostname, vncport))
+    print("""
+=================================== SUMMARY ===================================
+    """)
 
 
 def main():
