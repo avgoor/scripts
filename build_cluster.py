@@ -44,10 +44,11 @@ cfg["NODES_DISK_SIZE"] = int(os.getenv("NODES_DISK_SIZE", 50))
 cfg["STORAGE_POOL"] = os.getenv("STORAGE_POOL", "default")
 
 cfg["ISO_DIR"] = os.getenv("PWD") + "/" + os.getenv("ISO_DIR", "iso") + "/"
-cfg["ISO_PATH"] = cfg["ISO_DIR"] \
-                + cfg["ISO_URL"] \
-                .split("/")[-1] \
-                .split(".torrent")[0]
+if cfg["ISO_URL"]:
+    cfg["ISO_PATH"] = cfg["ISO_DIR"] \
+                    + cfg["ISO_URL"] \
+                    .split("/")[-1] \
+                    .split(".torrent")[0]
 
 
 """ Type of deployment:
@@ -114,9 +115,11 @@ def env_is_available():
     cursor.execute(
         "SELECT * FROM nets WHERE env='{0}';".format(cfg["ENV_NAME"])
     )
+
     if cursor.fetchone() is None:
         return True
-    return False
+    else:
+        return False
 
 
 def get_free_subnet():
@@ -221,7 +224,7 @@ def download_iso():
     cmd = ["aria2c", "-d", cfg["ISO_DIR"], "--seed-time=0",
            "--allow-overwrite=true", "--force-save=true",
            "--auto-file-renaming=false", "--allow-piece-length-change=true",
-           cfg["ISO_URL"]]
+           "--log-level=error", cfg["ISO_URL"]]
 
     proc = subprocess.Popen(
         cmd,
@@ -486,7 +489,7 @@ def send_keys(instance):
 
 
 def wait_for_api_is_ready():
-    time.sleep(60 * 10)
+    time.sleep(60 * 6)
 
 
 def inject_ifconfig_ssh():
@@ -541,6 +544,7 @@ def inject_ifconfig_ssh():
             return True
         else:
             retries += 1
+            print("Retry # {0} in 60 seconds".format(retries))
             time.sleep(60)
 
 
@@ -592,11 +596,11 @@ PLEASE USE FOLLOWING CONFIGURATION
 FOR CLUSTER'S NETWORKS
 
 PUBLIC:
-               START            END
-  IP RANGE  {pub_start}     {pub_end}
-  CIDR      {pub_subnet}
-  GATEWAY   {gw}
-  FLOATING  {float_start}   {float_end}""" \
+                         START            END
+        IP RANGE  {pub_start:20} {pub_end}
+        CIDR      {pub_subnet:20}
+        GATEWAY   {gw:20}
+        FLOATING  {float_start:20} {float_end}""" \
     .format(
         pub_start=str(cfg["PUBLIC_SUBNET"].ip + 3),
         pub_end=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
@@ -607,14 +611,15 @@ PUBLIC:
     )
     print(summary)
     #os.uname()[1] - hostname
-    print ("\nFUEL ACCESS:\n\t\t\thttp://{0}:8000".format(
+    print ("\nFUEL ACCESS:\n\thttp://{0}:8000".format(
         str(cfg["PUBLIC_SUBNET"].ip + 2)))
     print ("\nVNC CONSOLES:\n")
     for dom in vconn.listAllDomains():
         if dom.name().startswith(cfg["ENV_NAME"]):
             vncport = re.findall("graphics\stype=\'vnc\'\sport=\'(\d+)\'",  dom.XMLDesc())[0]
             hostname = os.uname()[1]
-            print("  {0:30} {1}:{2}".format(dom.name(), hostname, vncport))
+            print("\t{0:40} {1}:{2}".format(dom.name(), hostname, vncport))
+    print("\nNAME OF THE ENVIRONMENT (TO USE IN 'DESTROY_CLUSTER' JOB):\n\t{0}".format(cfg["ENV_NAME"]))
     print("""
 =================================== SUMMARY ===================================
     """)
