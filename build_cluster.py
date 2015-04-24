@@ -54,7 +54,11 @@ if cfg["ISO_URL"]:
 """ Type of deployment:
         TBD
 """
-cfg["DEPLOY_TYPE"] = int(os.getenv("DEPLOY_TYPE", 1))
+cfg["PREPARE_CLUSTER"] = os.getenv("PREPARE_CLUSTER")
+cfg["RELEASE"] = os.getenv("RELEASE")
+cfg["HA"] = os.getenv("HA")
+cfg["NETWORK_TYPE"] = os.getenv("NETWORK_TYPE")
+
 
 db = None
 
@@ -248,7 +252,7 @@ def register_env():
         "INSERT INTO envs VALUES ('{0}','{1}',{2},{3},{4},{5},{6},{7});"
         .format(cfg["ENV_NAME"], "nobody", cfg["NODES_COUNT"],
                 cfg["ADMIN_RAM"], cfg["ADMIN_CPU"], cfg["SLAVE_RAM"],
-                cfg["SLAVE_CPU"], cfg["DEPLOY_TYPE"])
+                cfg["SLAVE_CPU"], 1)
     )
     db.commit()
 
@@ -475,7 +479,7 @@ def send_keys(instance):
         ip=str(cfg["ADMIN_SUBNET"].ip + 2),
         netmask=str(cfg["ADMIN_SUBNET"].netmask),
         gw=str(cfg["ADMIN_SUBNET"].ip + 1),
-        hostname="testing"
+        hostname="mos-fuel"
     )
     print (keys)
     key_codes = scancodes.from_string(str(keys))
@@ -488,8 +492,6 @@ def send_keys(instance):
     pass
 
 
-def wait_for_api_is_ready():
-    time.sleep(60 * 6)
 
 
 def inject_ifconfig_ssh():
@@ -555,8 +557,81 @@ def start_slaves():
         start_node(name)
 
 
+def wait_for_api_is_ready():
+    cmd = ["sshpass", "-p", cfg["FUEL_SSH_PASSWORD"], "ssh", "-o"
+           "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no",
+           "{usr}@{admip}".format(usr=cfg["FUEL_SSH_USERNAME"],
+           admip=str(cfg["ADMIN_SUBNET"].ip + 2)),
+           "/usr/bin/fuel env"]
+
+    retries = 0
+    while retries < 20:
+        proc = subprocess.Popen(cmd, stdin=None, stdout=None, stderr=None)
+        proc.wait()
+        if proc.returncode == 0:
+            print ("\nNailgun API seems to be ready")
+            return True
+        else:
+            retries += 1
+            print ("\nNailgun API is not ready. Retry in 60 seconds")
+            time.sleep(60)
+    return False
+
+
 def configure_nailgun():
-    pass
+    if cfg["PREPARE_CLUSTER"] == "false":
+        return
+
+    conf_opts = {
+        "HA": "--mode ha",
+        "NO_HA": "--mode multinode",
+        "neutron_vlan": "--net neutron --nst vlan",
+        "neutron_gre": "--net neutron --nst gre",
+        "nova": "--net nova",
+        "Ubuntu": 2,
+        "CentOS": 1
+    }
+    cmd = [
+        "sshpass",
+        "-p",
+        cfg["FUEL_SSH_PASSWORD"],
+        "ssh",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "{usr}@{admip}".format(usr=cfg["FUEL_SSH_USERNAME"], 
+                               admip=str(cfg["ADMIN_SUBNET"].ip + 2)),
+        "/usr/bin/fuel -c --name {name} --release {release} {ha} {network};"
+        "/usr/bin/fuel network --env-id 1 -d; "
+        "/bin/sed -i -e 's/cidr: 172.16.0.0\/24$/cidr: {pub_net}\/{prefix}/g'"
+        " -e 's/gateway: 172.16.0.1$/gateway: {pub_gw}/g'"
+        " -e 's/- 172.16.0.2$/- {pstart}/g'"
+        " -e 's/- 172.16.0.127$/- {pend}/g'"
+        " -e 's/- 172.16.0.128$/- {fstart}/g'"
+        " -e 's/- 172.16.0.254$/- {fend}/g' /root/network_1.yaml;"
+        "/usr/bin/fuel network --env-id 1 -u".format(
+            name=cfg["ENV_NAME"],
+            release=conf_opts[cfg["RELEASE"]],
+            ha=conf_opts[cfg["HA"]],
+            network=conf_opts[cfg["NETWORK_TYPE"]],
+            pub_net=str(cfg["PUBLIC_SUBNET"].ip),
+            prefix=cfg["PUBLIC_SUBNET"].prefixlen,
+            pub_gw=str(cfg["PUBLIC_SUBNET"].ip + 1),
+            pstart=str(cfg["PUBLIC_SUBNET"].ip + 3),
+            pend=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
+            fstart=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
+            fend=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
+        )
+    ]
+    proc = subprocess.Popen(cmd, stdin=None, stdout=None, stderr=None)
+    proc.wait()
+    if proc.returncode == 0:
+        print ("\nNailgun has been configured")
+        return True
+    else:
+        print ("\nERROR: Nailgun has not been configured")
+        return False
 
 
 def wait_for_cluster_is_ready():
@@ -636,7 +711,8 @@ def main():
     print("Starting script with following options:\n")
     pprint_dict(cfg)
 
-    download_iso()
+
+#    download_iso()
 
     if cfg["ENV_NAME"] is None:
         print ("\nERROR: $ENV_NAME must be set!")
@@ -660,13 +736,15 @@ def main():
 
     start_node(cfg["ENV_NAME"]+"_admin", admin=True)
 
-    wait_for_api_is_ready()
+    time.sleep(60 * 5)
 
     inject_ifconfig_ssh()
 
     start_slaves()
 
     print_summary()
+
+    wait_for_api_is_ready()
 
     configure_nailgun()
 
