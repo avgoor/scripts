@@ -591,6 +591,32 @@ def configure_nailgun():
         "Ubuntu": 2,
         "CentOS": 1
     }
+
+    if cfg["NETWORK_TYPE"] == "nova":
+        sed = "/bin/sed -i -e 's/cidr: 172.16.0.0\/24$/cidr: {pub_net}\/{prefix}/g'" \
+            " -e 's/gateway: 172.16.0.1$/gateway: {pub_gw}/g'" \
+            " -e 's/- 172.16.0.2$/- {pstart}/g'" \
+            " -e 's/- 172.16.0.127$/- {pend}/g'" \
+            " -e 's/- 172.16.0.128$/- {fstart}/g'" \
+            " -e 's/- 172.16.0.254$/- {fend}/g' /root/network_1.yaml;"
+    else:
+        sed = "/bin/sed -i -e 's/cidr: 172.16.0.0\/24$/cidr: {pub_net}\/{prefix}/g'" \
+            " -e 's/gateway: 172.16.0.1$/gateway: {pub_gw}/g'" \
+            " -e 's/- 172.16.0.2$/- {pstart}/g'" \
+            " -e 's/- 172.16.0.126$/- {pend}/g'" \
+            " -e 's/- 172.16.0.130$/- {fstart}/g'" \
+            " -e 's/- 172.16.0.254$/- {fend}/g' /root/network_1.yaml;"
+
+    sed = sed.format(
+        pub_net=str(cfg["PUBLIC_SUBNET"].ip),
+        prefix=cfg["PUBLIC_SUBNET"].prefixlen,
+        pub_gw=str(cfg["PUBLIC_SUBNET"].ip + 1),
+        pstart=str(cfg["PUBLIC_SUBNET"].ip + 3),
+        pend=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
+        fstart=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
+        fend=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
+    )
+
     cmd = [
         "sshpass",
         "-p",
@@ -602,28 +628,18 @@ def configure_nailgun():
         "StrictHostKeyChecking=no",
         "{usr}@{admip}".format(usr=cfg["FUEL_SSH_USERNAME"], 
                                admip=str(cfg["ADMIN_SUBNET"].ip + 2)),
-        "/usr/bin/fuel -c --name {name} --release {release} {ha} {network};"
-        "/usr/bin/fuel network --env-id 1 -d; "
-        "/bin/sed -i -e 's/cidr: 172.16.0.0\/24$/cidr: {pub_net}\/{prefix}/g'"
-        " -e 's/gateway: 172.16.0.1$/gateway: {pub_gw}/g'"
-        " -e 's/- 172.16.0.2$/- {pstart}/g'"
-        " -e 's/- 172.16.0.127$/- {pend}/g'"
-        " -e 's/- 172.16.0.128$/- {fstart}/g'"
-        " -e 's/- 172.16.0.254$/- {fend}/g' /root/network_1.yaml;"
+        "/usr/bin/fuel env -c --name {name} --release {release} {ha} {network};"
+        "/usr/bin/fuel network --env-id 1 -d; {sed}"
         "/usr/bin/fuel network --env-id 1 -u".format(
             name=cfg["ENV_NAME"],
             release=conf_opts[cfg["RELEASE"]],
             ha=conf_opts[cfg["HA"]],
             network=conf_opts[cfg["NETWORK_TYPE"]],
-            pub_net=str(cfg["PUBLIC_SUBNET"].ip),
-            prefix=cfg["PUBLIC_SUBNET"].prefixlen,
-            pub_gw=str(cfg["PUBLIC_SUBNET"].ip + 1),
-            pstart=str(cfg["PUBLIC_SUBNET"].ip + 3),
-            pend=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
-            fstart=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
-            fend=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
+            sed=sed
         )
     ]
+
+    print(cmd)
     proc = subprocess.Popen(cmd, stdin=None, stdout=None, stderr=None)
     proc.wait()
     if proc.returncode == 0:
