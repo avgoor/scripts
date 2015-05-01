@@ -1,14 +1,14 @@
 WHAT IS IT?
-___________
+===========
 
     This script is a part of sustainig team's internal utilities repository.
-    The main goal of this script is to deploy any (almost) version of Miranits
-    Openstack in virtual environment and configure important parts of deployment.
-    It creates networks, volumes and VMs via python libvirt bindings and manages
-    the networks in order to obtain fully splitted environments with free access
-    to "public" network of each environment.
+ The main goal of this script is to deploy any (almost) version of Miranits
+ Openstack in virtual environment and configure important parts of deployment.
+ It creates networks, volumes and VMs via python libvirt bindings and manages
+ the networks in order to obtain fully splitted environments with free access
+ to "public" network of each environment.
 
-    Tested on:
+Tested on:
     * MirantisOpenstack 5.1
     * MirantisOpenstack 5.1.1
     * MirantisOpenstack 6.0
@@ -16,12 +16,12 @@ ___________
     * MirantisOpenstack 6.1 (development version)
 
 HOW TO INSTALL?
-_______________
+===============
 
-    Just download, install all requirements and it is ready.
+ Just download, install all requirements and it is ready.
 
 WHAT IS REQUIRED?
-_________________
+================
 
     * python 2.x
     * netaddr
@@ -30,32 +30,42 @@ _________________
     * python-libvirt
     * aria2
     * scancodes
+    * sshpass
 
 JENKINS JOB?
-____________
+============
 
-    There is `config.xml` file in directory, it represents Jenkins JOB.
-    Copy it to your Jenkins and use it.
+ There is `config.xml` file in directory, it represents Jenkins JOB.
+ Copy it to your Jenkins and use it.
 
 HOW TO RUN IT?
-______________
+==============
 
-    From Jenkins you should dispatch new build with following variables:
+ From Jenkins you should dispatch new build with following variables:
 
-    NAME - unique name of cluster
-    ISO_URL - direct URL of Mirantis Openstack ISO-file or URL of torrent
-    NODES_COUNT - quantity of nodes in cluster excluding Fuel-node
-    ADMIN_RAM - amount of memory for Fuel-node (4096 is default and good)
-    ADMIN_CPU - number of CPUs for Fuel-node
-    SLAVE_RAM - amount of memory for slave-nodes in cluster (3072 and higher)
-    SLAVE_CPU - number of CPUs for slave-nodes
-    PREPARE_CLUSTER - if true create a cluster after Fuel installation
-                      also generates networks
-    NETWORK_TYPE - neutron_vlan | neutron_gre | nova
-    RELEASE - base OS of cluster
-    HA - high availability on/off (HA requires at least 3 controllers)
+ NAME - unique name of cluster
+ 
+ ISO_URL - direct URL of Mirantis Openstack ISO-file or URL of torrent
+ 
+ NODES_COUNT - quantity of nodes in cluster excluding Fuel-node
+ 
+ ADMIN_RAM - amount of memory for Fuel-node (4096 is default and good)
+ 
+ ADMIN_CPU - number of CPUs for Fuel-node
+ 
+ SLAVE_RAM - amount of memory for slave-nodes in cluster (3072 and higher)
+ 
+ SLAVE_CPU - number of CPUs for slave-nodes
+ 
+ PREPARE_CLUSTER - if true create a cluster after Fuel installation also generates networks
+ 
+ NETWORK_TYPE - neutron_vlan | neutron_gre | nova
+ 
+ RELEASE - base OS of cluster
+ 
+ HA - high availability on/off (HA requires at least 3 controllers)
 
-    Then you will get a status message in job's output with URL of Fuel.
+ Then you will get a status message in job's output with URL of Fuel.
 
 NETWORKS MANAGEMENT
 ___________________
