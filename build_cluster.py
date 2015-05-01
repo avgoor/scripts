@@ -45,23 +45,15 @@ cfg["STORAGE_POOL"] = os.getenv("STORAGE_POOL", "default")
 
 cfg["ISO_DIR"] = os.getenv("PWD") + "/" + os.getenv("ISO_DIR", "iso") + "/"
 if cfg["ISO_URL"]:
-    cfg["ISO_PATH"] = cfg["ISO_DIR"] \
-                    + cfg["ISO_URL"] \
-                    .split("/")[-1] \
-                    .split(".torrent")[0]
+    cfg["ISO_PATH"] = cfg["ISO_DIR"] + cfg["ISO_URL"] \
+        .split("/")[-1].split(".torrent")[0]
 
-
-""" Type of deployment:
-        TBD
-"""
 cfg["PREPARE_CLUSTER"] = os.getenv("PREPARE_CLUSTER")
 cfg["RELEASE"] = os.getenv("RELEASE")
 cfg["HA"] = os.getenv("HA")
 cfg["NETWORK_TYPE"] = os.getenv("NETWORK_TYPE")
 
-
 db = None
-
 
 try:
     vconn = libvirt.open("qemu:///system")
@@ -126,59 +118,16 @@ def env_is_available():
         return False
 
 
-def get_free_subnet():
-    global cfg
-    global db
-
-    sql_query = "SELECT net FROM nets;"
-    cursor = db.cursor()
-    cursor.execute(sql_query)
-    occupied_nets = set(
-        netaddr.IPNetwork(x[0]) for x in cursor.fetchall()
-    )
-    admin_subnets = set(
-        x for x in netaddr.IPNetwork(cfg["ADMIN_NET"])
-                          .subnet(cfg["ADM_SUBNET_SIZE"])
-        if x not in occupied_nets
-    )
-    public_subnets = set(
-        x for x in netaddr.IPNetwork(cfg["PUBLIC_NET"])
-                          .subnet(cfg["PUB_SUBNET_SIZE"])
-        if x not in occupied_nets
-    )
-
-    if not admin_subnets or not public_subnets:
-        print ("\nERROR: No more NETWORKS to associate!")
-        return False
-
-    cfg["ADMIN_SUBNET"] = sorted(admin_subnets)[0]
-    cfg["PUBLIC_SUBNET"] = sorted(public_subnets)[0]
-    print (
-        "Following subnets will be used:\n"
-        " ADMIN_SUBNET:   {0}\n"
-        " PUBLIC_SUBNET:  {1}\n".format(cfg["ADMIN_SUBNET"],
-                                        cfg["PUBLIC_SUBNET"])
-    )
-    sql_query = [
-        (str(cfg["ADMIN_SUBNET"]), str(cfg["ENV_NAME"]),
-         str(cfg["ENV_NAME"] + "_adm")),
-        (str(cfg["PUBLIC_SUBNET"]), str(cfg["ENV_NAME"]),
-         str(cfg["ENV_NAME"] + "_pub"))
-    ]
-    print sql_query
-    cursor.executemany("INSERT INTO nets VALUES (?,?,?)", sql_query)
-    db.commit()
-    return True
-
-
 def get_free_subnet_from_libvirt():
     occupied_nets = set()
     for net in vconn.listAllNetworks():
         res = re.findall("<ip address=\'(.*)\' prefix=\'(.*)\'>",
                          net.XMLDesc())
-        if res[0]:
+        try:
             occupied_nets.add(netaddr.IPNetwork(
                 "{0}/{1}".format(res[0][0], res[0][1])))
+        except IndexError:
+            pass
 
     admin_subnets = set(
         x for x in netaddr.IPNetwork(cfg["ADMIN_NET"])
@@ -317,7 +266,8 @@ def volume_create(name):
               .format(cfg["STORAGE_POOL"]))
         sys.exit(12)
 
-    volume = vol_template.format(vol_name=name, vol_size=cfg["NODES_DISK_SIZE"])
+    volume = vol_template.format(vol_name=name,
+                                 vol_size=cfg["NODES_DISK_SIZE"])
 
     try:
         vol_object = pool.createXML(volume)
@@ -472,14 +422,12 @@ def send_keys(instance):
         " ip={ip}\n"
         " netmask={netmask}\n"
         " gw={gw}\n"
-        " dns1=8.8.8.8\n"
-        " hostname={hostname}\n"
+        " dns1={gw}\n"
         " <Enter>\n"
     ).format(
         ip=str(cfg["ADMIN_SUBNET"].ip + 2),
         netmask=str(cfg["ADMIN_SUBNET"].netmask),
-        gw=str(cfg["ADMIN_SUBNET"].ip + 1),
-        hostname="mos-fuel"
+        gw=str(cfg["ADMIN_SUBNET"].ip + 1)
     )
     print (keys)
     key_codes = scancodes.from_string(str(keys))
@@ -492,21 +440,20 @@ def send_keys(instance):
     pass
 
 
-
-
 def inject_ifconfig_ssh():
-    rule = "DEVICE=eth1\n" \
-           "ONBOOT=yes\n" \
-           "BOOTPROTO=static\n" \
-           "NM_CONTROLLED=no\n" \
-           "IPADDR={ip}\n" \
-           "PREFIX={prefix}\n" \
-           "GATEWAY={gw}\n" \
-           .format(
-                ip=str(cfg["PUBLIC_SUBNET"].ip + 2),
-                prefix=str(cfg["PUBLIC_SUBNET"].prefixlen),
-                gw=str(cfg["PUBLIC_SUBNET"].ip + 1)
-            )
+    rule = \
+        "DEVICE=eth1\n" \
+        "ONBOOT=yes\n" \
+        "BOOTPROTO=static\n" \
+        "NM_CONTROLLED=no\n" \
+        "IPADDR={ip}\n" \
+        "PREFIX={prefix}\n" \
+        "GATEWAY={gw}\n" \
+        .format(
+            ip=str(cfg["PUBLIC_SUBNET"].ip + 2),
+            prefix=str(cfg["PUBLIC_SUBNET"].prefixlen),
+            gw=str(cfg["PUBLIC_SUBNET"].ip + 1)
+        )
     print ("\nTo fuel:\n{0}".format(rule))
     ifcfg = "/etc/sysconfig/network-scripts/ifcfg-eth1"
     psw = cfg["FUEL_SSH_PASSWORD"]
@@ -561,7 +508,7 @@ def wait_for_api_is_ready():
     cmd = ["sshpass", "-p", cfg["FUEL_SSH_PASSWORD"], "ssh", "-o"
            "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no",
            "{usr}@{admip}".format(usr=cfg["FUEL_SSH_USERNAME"],
-           admip=str(cfg["ADMIN_SUBNET"].ip + 2)),
+                                  admip=str(cfg["ADMIN_SUBNET"].ip + 2)),
            "/usr/bin/fuel env"]
 
     retries = 0
@@ -569,7 +516,8 @@ def wait_for_api_is_ready():
         proc = subprocess.Popen(cmd, stdin=None, stdout=None, stderr=None)
         proc.wait()
         if proc.returncode == 0:
-            print ("\nNailgun API seems to be ready")
+            print ("\nNailgun API seems to be ready, waiting 60 sec.")
+            time.sleep(60)
             return True
         else:
             retries += 1
@@ -605,15 +553,17 @@ def configure_nailgun():
             " -e 's/- 172.16.0.2$/- {pstart}/g'" \
             " -e 's/- 172.16.0.126$/- {pend}/g'" \
             " -e 's/- 172.16.0.130$/- {fstart}/g'" \
-            " -e 's/- 172.16.0.254$/- {fend}/g' /root/network_1.yaml;"
+            " -e 's/- 172.16.0.254$/- {fend}/g' /root/network_1.yaml;" \
+            "sed -i -e '/public_network_assignment:$/" \
+            "{{:a N; s/value:.*$/value: true/; t b ; ba ; :b }}' /root/settings_1.yaml;"
 
     sed = sed.format(
         pub_net=str(cfg["PUBLIC_SUBNET"].ip),
         prefix=cfg["PUBLIC_SUBNET"].prefixlen,
         pub_gw=str(cfg["PUBLIC_SUBNET"].ip + 1),
         pstart=str(cfg["PUBLIC_SUBNET"].ip + 3),
-        pend=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
-        fstart=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
+        pend=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
+        fstart=str(cfg["PUBLIC_SUBNET"].ip + 5 + int(cfg["NODES_COUNT"])),
         fend=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
     )
 
@@ -626,10 +576,12 @@ def configure_nailgun():
         "UserKnownHostsFile=/dev/null",
         "-o",
         "StrictHostKeyChecking=no",
-        "{usr}@{admip}".format(usr=cfg["FUEL_SSH_USERNAME"], 
+        "{usr}@{admip}".format(usr=cfg["FUEL_SSH_USERNAME"],
                                admip=str(cfg["ADMIN_SUBNET"].ip + 2)),
         "/usr/bin/fuel env -c --name {name} --release {release} {ha} {network};"
+        "/usr/bin/fuel settings --env-id 1 --download;"
         "/usr/bin/fuel network --env-id 1 -d; {sed}"
+        "/usr/bin/fuel settings --env-id 1 --upload;"
         "/usr/bin/fuel network --env-id 1 -u".format(
             name=cfg["ENV_NAME"],
             release=conf_opts[cfg["RELEASE"]],
@@ -645,8 +597,15 @@ def configure_nailgun():
     if proc.returncode == 0:
         print ("\nNailgun has been configured")
         return True
+    time.sleep(60)
+    print("Retry")
+    proc = subprocess.Popen(cmd, stdin=None, stdout=None, stderr=None)
+    proc.wait()
+    if proc.returncode == 0:
+        print ("\nNailgun has been configured")
+        return True
     else:
-        print ("\nERROR: Nailgun has not been configured")
+        print ("\nERROR: Nailgun has not been configured even after 2nd retry")
         return False
 
 
@@ -694,10 +653,10 @@ PUBLIC:
         FLOATING  {float_start:20} {float_end}""" \
     .format(
         pub_start=str(cfg["PUBLIC_SUBNET"].ip + 3),
-        pub_end=str(cfg["PUBLIC_SUBNET"].ip + 3 + int(cfg["NODES_COUNT"])),
+        pub_end=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
         pub_subnet=str(cfg["PUBLIC_SUBNET"]),
         gw=str(cfg["PUBLIC_SUBNET"].ip + 1),
-        float_start=str(cfg["PUBLIC_SUBNET"].ip + 4 + int(cfg["NODES_COUNT"])),
+        float_start=str(cfg["PUBLIC_SUBNET"].ip + 5 + int(cfg["NODES_COUNT"])),
         float_end=str(netaddr.IPAddress(cfg["PUBLIC_SUBNET"].last) - 1)
     )
     print(summary)
@@ -707,10 +666,12 @@ PUBLIC:
     print ("\nVNC CONSOLES:\n")
     for dom in vconn.listAllDomains():
         if dom.name().startswith(cfg["ENV_NAME"]):
-            vncport = re.findall("graphics\stype=\'vnc\'\sport=\'(\d+)\'",  dom.XMLDesc())[0]
+            vncport = re.findall("graphics\stype=\'vnc\'\sport=\'(\d+)\'",
+                                 dom.XMLDesc())[0]
             hostname = os.uname()[1]
             print("\t{0:40} {1}:{2}".format(dom.name(), hostname, vncport))
-    print("\nNAME OF THE ENVIRONMENT (TO USE IN 'DESTROY_CLUSTER' JOB):\n\t{0}".format(cfg["ENV_NAME"]))
+    print("\nNAME OF THE ENVIRONMENT (USED IN 'DESTROY_CLUSTER' JOB):\n\t{0}"
+          .format(cfg["ENV_NAME"]))
     print("""
 =================================== SUMMARY ===================================
     """)
@@ -727,8 +688,7 @@ def main():
     print("Starting script with following options:\n")
     pprint_dict(cfg)
 
-
-#    download_iso()
+    download_iso()
 
     if cfg["ENV_NAME"] is None:
         print ("\nERROR: $ENV_NAME must be set!")
