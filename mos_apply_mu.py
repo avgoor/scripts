@@ -304,6 +304,7 @@ fi
         pass
 
     head_of_script = """#!/bin/bash
+exec > >(logger -tmos_apply_mu)
 set -x
 TMPDIR="/tmp"
 TOTAL_COUNT=0
@@ -367,7 +368,7 @@ of $TOTAL_COUNT INSTALLED" >> $STATUS
             "ssh",
             ip,
             "cat - > /root/mos_update.sh ; chmod +x /root/mos_update.sh; "
-            "(nohup /root/mos_update.sh > /var/log/mos_apply_mu.log 2>&1) &"
+            "(nohup /root/mos_update.sh > /dev/null 2>&1) &"
         ]
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,
