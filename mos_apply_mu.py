@@ -38,7 +38,7 @@ try_offline = False
 really = False
 check = False
 
-master_ip = "10.20.0.2"
+master_ip = None
 path = "custom.pkg"
 install_custom = False
 pkgs = None
@@ -74,10 +74,10 @@ Required arguments:
                 OR
     --check             Check status of selected nodes
 
+    --master-ip         IP-Address of Fuel-master node
+
 Optional arguments:
 
-    --master-ip         IP-Address of Fuel-master node
-                            default: 10.20.0.2
     --offline           Add to update nodes which are currently offline in fuel
                             (can cause significant timeouts)
     --user              Username used in Fuel-Keystone authentication
@@ -145,18 +145,21 @@ Mirantis, 2015
             master_ip = cmd.split('=')[1]
 
     if (env_id > 0) and (all_envs):
-        print ("You should only select either --env-id or --all-envs.")
         print (usage)
+        print ("You should only select either --env-id or --all-envs.")
         sys.exit(5)
     if (env_id == 0) and (not all_envs):
-        print ("At least one option (env-id or all-envs) must be set.")
         print (usage)
+        print ("At least one option (env-id or all-envs) must be set.")
         sys.exit(6)
     if really and check:
-        print ("You should use either --check or --update. Not both.")
         print (usage)
+        print ("You should use either --check or --update. Not both.")
         sys.exit(7)
-
+    if master_ip is None:
+        print (usage)
+        print ("--master-ip is required! Set with --master-ip=X.X.X.X")
+        sys.exit(110)
 
 def get_downloads_list():
     global pkgs
@@ -234,6 +237,11 @@ def do_node_update(nodes, env_list):
 
     print ("Selected nodes: " + ", ".join([x[0] for x in to_update]))
     packages_to_install = get_downloads_list()
+    if pkgs is not None:
+        print ("Custom packages will be installed")
+    else:
+        print("No custom packages will be installed")
+
     if really:
         if packages_to_install is not None:
             packages_download()
@@ -241,6 +249,8 @@ def do_node_update(nodes, env_list):
             print ("Unable to get packages list from file {0}".format(path))
 
     for ip, os_version in to_update:
+        print ("Full log for {0} is located at /var/log/remote/"
+               "{0}/mos_apply_mu.log".format(ip))
         send_shell_script(ip, os_version)
         if check:
             check_status(ip)
@@ -299,12 +309,11 @@ fi
             package_text += package_template.format(name, get_md5_from_file(
                                                     dest+name))
     except:
-        msg = "{0} will be updated without custom packages".format(ip)
-        print(msg)
         pass
 
     head_of_script = """#!/bin/bash
-exec > >(logger -tmos_apply_mu)
+exec > >(logger -tmos_apply_mu) 2>&1
+
 set -x
 TMPDIR="/tmp"
 TOTAL_COUNT=0
@@ -353,8 +362,7 @@ install_package()
 
 %%packages_install%%
 
-echo "REPO_UPD=$REPO_STATE;PKGS=$SUCCESS_COUNT\
-of $TOTAL_COUNT INSTALLED" >> $STATUS
+echo "REPO_UPD=$REPO_STATE;CUSTOM=$SUCCESS_COUNT of $TOTAL_COUNT INSTALLED" >> $STATUS
 
 """
     total = head_of_script\
@@ -370,10 +378,11 @@ of $TOTAL_COUNT INSTALLED" >> $STATUS
             "cat - > /root/mos_update.sh ; chmod +x /root/mos_update.sh; "
             "(nohup /root/mos_update.sh > /dev/null 2>&1) &"
         ]
-        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE,
-                                stderr=None)
-        print(proc.communicate(input=total))
+        with open(os.devnull,'w') as DNULL:
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=DNULL)
+        proc.communicate(input=total)
         proc.wait()
         if proc.returncode == 0:
             print ("Script is running on {0}".format(ip))
