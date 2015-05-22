@@ -146,19 +146,19 @@ Mirantis, 2015
 
     if (env_id > 0) and (all_envs):
         print (usage)
-        print ("You should only select either --env-id or --all-envs.")
+        print ("ERROR: You should only select either --env-id or --all-envs.")
         sys.exit(5)
     if (env_id == 0) and (not all_envs):
         print (usage)
-        print ("At least one option (env-id or all-envs) must be set.")
+        print ("ERROR: At least one option (env-id or all-envs) must be set.")
         sys.exit(6)
     if really and check:
         print (usage)
-        print ("You should use either --check or --update. Not both.")
+        print ("ERROR: You should use either --check or --update. Not both.")
         sys.exit(7)
     if master_ip is None:
         print (usage)
-        print ("--master-ip is required! Set with --master-ip=X.X.X.X")
+        print ("ERROR: --master-ip is required! Set with --master-ip=X.X.X.X")
         sys.exit(110)
 
 def get_downloads_list():
@@ -291,6 +291,37 @@ def send_shell_script(ip, os_version):
         'centos': '/bin/rpm -Uvh'
     }
 
+    apache_user = {
+        'ubuntu': 'horizon',
+        'centos': 'apache'
+    }
+
+    apache_restart = {
+        'ubuntu': 'service apache2 restart',
+        'centos': 'service httpd restart'
+    }
+
+    murano_fix = """
+if [ -a /usr/bin/modify-horizon-config.sh ]
+then
+    /usr/bin/modify-horizon-config.sh uninstall
+    export HORIZON_CONFIG=/usr/share/openstack-dashboard/openstack_dashboard/settings.py
+    export MURANO_SSL_ENABLED=False
+    export USE_KEYSTONE_ENDPOINT=True
+    export USE_SQLITE_BACKEND=False
+    export APACHE_USER="{apache_user}"
+    export APACHE_GROUP="{apache_user}"
+    /usr/bin/modify-horizon-config.sh install
+    /usr/share/openstack-dashboard/manage.py collectstatic --noinput
+    {apache_restart}
+else
+    echo "Murano is not installed. Fix skipped."
+fi
+    """.format(
+        apache_user=apache_user[os_version],
+        apache_restart=apache_restart[os_version]
+    )
+
     package_template = """
 FILE="{0}"
 FILEMD="{1}"
@@ -362,6 +393,8 @@ install_package()
 
 %%packages_install%%
 
+%%murano_fix%%
+
 echo "REPO_UPD=$REPO_STATE;CUSTOM=$SUCCESS_COUNT of $TOTAL_COUNT INSTALLED" >> $STATUS
 
 """
@@ -369,7 +402,8 @@ echo "REPO_UPD=$REPO_STATE;CUSTOM=$SUCCESS_COUNT of $TOTAL_COUNT INSTALLED" >> $
         .replace("%%install%%", pkg_install_tool[os_version])\
         .replace("%%master_ip%%", master_ip)\
         .replace("%%packages_install%%", package_text)\
-        .replace("%%repo_install%%", repo_install[os_version])
+        .replace("%%repo_install%%", repo_install[os_version])\
+        .replace("%%murano_fix%%", murano_fix)
 
     if really:
         cmd = [
