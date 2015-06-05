@@ -17,26 +17,13 @@ import os
 import sys
 import subprocess
 
+# This is the list of components which will be check or gather md5 from.
+# Here should be all OpenStack components including clients
 components = ['nova', 'novaclient', 'cinder', 'cinderclient', 'neutron']
-
-def execute_return_dict(cmd):
-    """Run cmd (string) and return its output"""
-    print (cmd)
-    run = subprocess.Popen(cmd, stdin=None, bufsize=1024 * 1024,
-                           stdout=subprocess.PIPE, stderr=None)
-    total = dict()
-    while True:
-        out = run.stdout.readline()
-        if out == '' and run.poll() is not None:
-            break
-        if out:
-            total[out.split("  ")[1].strip()] = out.split("  ")[0]
-#   print (total)
-    return total or None
 
 
 def gather_data(path):
-    """Traverse path and gather md5 form py-files"""
+    """Traverse path and gather md5 from py-files"""
 
     data = dict()
 
@@ -61,8 +48,29 @@ def gather_data(path):
 
 
 def main():
-    data = gather_data('/usr/lib/python2.7/dist-packages')
-    with open("files-md5.json", "w") as fp:
+
+    filename = "files.md5"
+    print sys.argv
+    for cmd in sys.argv[1:]:
+        if '--file' in cmd:
+            filename = cmd.split("=")[1]
+        if '--gather' in cmd:
+            gather = True
+        if '--release' in cmd:
+            release = cmd.split("=")[1]
+ 
+    if not release:
+        print ("NEED TO SET RELEASE!")
+        sys.exit(1)
+ 
+    data = dict()
+    with open(filename, "r") as fp:
+        data = json.load(fp)
+
+    data[release] = gather_data('/usr/lib/python2.7/dist-packages')
+    data['paths'] = {"ubuntu": "/usr/lib/python2.7/dist-packages",
+                     "centos": "/usr/lib/python2.6/site-packages"}
+    with open(filename, "w") as fp:
         json.dump(data,fp)
 
 
