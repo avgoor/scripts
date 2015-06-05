@@ -1,0 +1,14 @@
+{
+    "release":{
+    "6.0":{"base_dir":{"ubuntu":"/usr/lib/python2.7/dist-packages/",
+                       "centos":"/usr/lib/python2.6/site-packages/"},
+           "files":{
+        "nova":{
+            "7aec20b7a65f54ba442a84c3995b56df": "nova/scheduler/rpcapi.py",
+            "e228bed45b4a25fcaeb0633d1584101c": "nova/scheduler/host_manager.py"
+            },
+         "neutron": "null"
+        }}
+    }
+}
+
