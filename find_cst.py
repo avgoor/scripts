@@ -12,26 +12,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-
+import json
 import os
 import sys
 import subprocess
 
 components = ['nova', 'novaclient', 'cinder', 'cinderclient', 'neutron']
-
-def get_md5_from_file(file):
-    """ Gets md5 checksum from file by calling external tool."""
-    run = subprocess.Popen(["md5sum", file], stdin=None,
-                           stdout=subprocess.PIPE, stderr=None)
-    run.wait()
-
-    if run.returncode == 0:
-        md5 = run.communicate()[0].split('  ')[0]
-    else:
-        md5 = None
-
-    return md5
-
 
 def execute_return_dict(cmd):
     """Run cmd (string) and return its output"""
@@ -50,18 +36,35 @@ def execute_return_dict(cmd):
 
 
 def gather_data(path):
+    """Traverse path and gather md5 form py-files"""
+
     data = dict()
+
     for component in components:
         workdir = path + "/" + component + "/"
         cmd = ["/usr/bin/find", workdir,'-name', '*.py', '-exec', '/usr/bin/md5sum','{}',';']
-        data['component'] = execute_return_dict(cmd)
-    print (data)
-    pass
+
+        run = subprocess.Popen(cmd, stdin=None, bufsize=1024 * 1024,
+                               stdout=subprocess.PIPE, stderr=None)
+        store = dict()
+        while True:
+            out = run.stdout.readline()
+            if out == '' and run.poll() is not None:
+                break
+            if out:
+                tmp = out.split("  ")
+                store[tmp[1].strip().replace(workdir, '')] = tmp[0] 
+
+        data[component] = store
+
+    return data
 
 
 def main():
-    gather_data('/usr/lib/python2.7/dist-packages')
-    pass
+    data = gather_data('/usr/lib/python2.7/dist-packages')
+    with open("files-md5.json", "w") as fp:
+        json.dump(data,fp)
+
 
 
 if __name__ == '__main__':
