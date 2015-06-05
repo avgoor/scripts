@@ -47,6 +47,19 @@ def gather_data(path):
     return data
 
 
+
+def do_gather():
+    global data
+    
+    data[release] = gather_data('/usr/lib/python2.7/dist-packages')
+    data['paths'] = {"ubuntu": "/usr/lib/python2.7/dist-packages",
+                     "centos": "/usr/lib/python2.6/site-packages"}
+    with open(filename, "w") as fp:
+        json.dump(data,fp)
+
+   
+
+
 def main():
 
     filename = "files.md5"
@@ -58,22 +71,24 @@ def main():
             gather = True
         if '--release' in cmd:
             release = cmd.split("=")[1]
+        if '--os' in cmd:
+            os_version = cmd.split("=")[1]
  
     if not release:
         print ("NEED TO SET RELEASE!")
         sys.exit(1)
  
-    data = dict()
-    with open(filename, "r") as fp:
-        data = json.load(fp)
+    try:
+        with open(filename, "r") as fp:
+            data = json.load(fp)
+    except:
+        data = dict()        
 
-    data[release] = gather_data('/usr/lib/python2.7/dist-packages')
-    data['paths'] = {"ubuntu": "/usr/lib/python2.7/dist-packages",
-                     "centos": "/usr/lib/python2.6/site-packages"}
-    with open(filename, "w") as fp:
-        json.dump(data,fp)
-
-
+    
+    if gather:
+        do_gather(data, release)
+    else:
+        do_check()
 
 if __name__ == '__main__':
     main()
