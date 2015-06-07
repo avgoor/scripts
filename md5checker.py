@@ -89,6 +89,8 @@ class Gatherer(object):
                 self.cfg['data'] = json.load(fp)
         except:
             self.cfg['data'] = self._prepare_structure()
+        if self.cfg['release'] not in self.cfg['data'].keys():
+            self.cfg['data'][self.cfg['release']] = dict()
 
     def _prepare_structure(self):
         data = dict()
