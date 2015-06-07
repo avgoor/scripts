@@ -24,14 +24,14 @@ MOS release consistency checker.
 Opts
 ====
     --release      Set Fuel release
-    --filename     Set name of file to use as database
+    --filename     Set name of file to use as a database
 
 Usage
 =====
     Checking consistency of MOS assuming that it is Fuel 6.0 release
     python md5checker.py --release=6.0 --os=ubuntu --check
 
-    Gathering data for database assumuning that the release is 6.0-mu4
+    Gathering data for database assuming that the release is 6.0-mu4
     python md5checker.py --release=6.0-mu4 --os=centos --gather
     """)
     sys.exit(1)
@@ -73,12 +73,12 @@ class Gatherer(object):
         except:
             self.cfg['data'] = self.__prepare_structure()
 
-    def __prepare_structure(self):
+    def _prepare_structure(self):
         data = dict()
         data[self.cfg['release']] = dict()
         return data
 
-    def __gather(self):
+    def _gather(self):
         for component in components:
             fdir = self.cfg['path'][self.cfg['os']] + "/" + \
                 component + "/"
@@ -86,12 +86,11 @@ class Gatherer(object):
                    '-exec', '/usr/bin/md5sum','{}',';']
             run = subprocess.Popen(
                 cmd,
-                bufsize=1024 * 1024 * 8,
                 stdin=None,
                 stdout=subprocess.PIPE,
                 stderr=None
             )
-            while not stop:
+            while True:
                 out = run.stdout.readline()
                 if out == '' and run.poll() is not None:
                     break
@@ -104,22 +103,51 @@ class Gatherer(object):
                     except KeyError:
                         self.cfg['data'][self.cfg['release']].update({component:{fl:md5}})
 
-    def __store_gathered(self):
+    def _store_gathered(self):
         if self.cfg['data']:
             with open(self.cfg['filename'], 'w') as fp:
                 json.dump(self.cfg['data'], fp)
 
     def do(self):
-        self.__gather()
-        self.__store_gathered()
+        self._gather()
+        self._store_gathered()
 
 
-class Checker(object):
+class Checker(Gatherer):
     def __init__(self, cfg):
         self.cfg = dict(cfg)
+        self.cfg['data'] = self._prepare_structure()
+        self.old_cfg = dict(cfg)
+        try:
+            with open(self.cfg['filename'], 'r') as fp:
+                self.old_cfg['data'] = json.load(fp)
+        except:
+            usage("Datafile not accessible!")
+        if self.cfg['release'] not in self.cfg['data'].keys():
+            usage("Target release is not in database!")
+
+
+    def _check(self):
+        for component in components:
+            try:
+                db = self.old_cfg['data'][self.cfg['release']][component]
+                got = self.cfg['data'][self.cfg['release']][component]
+                total_keys = set(db.keys() + got.keys())
+                for key in total_keys:
+                    if got[key] != db[key]:
+                        print ("{0}/{1} is not equal".format(component, key))
+            except KeyError as e:
+                print (e)
+
+    def _make_report(self):
+        pass
 
     def do(self):
-        pass
+        self._gather()
+        self._check()
+        self._make_report()
+
+
 def main():
     cfg = opts_parse()
     if cfg['action'] == 'gather':
