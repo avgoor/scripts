@@ -128,18 +128,35 @@ class Checker(Gatherer):
 
 
     def _check(self):
+        self.report = dict()
         for component in components:
             try:
                 db = self.old_cfg['data'][self.cfg['release']][component]
                 got = self.cfg['data'][self.cfg['release']][component]
-                total_keys = set(db.keys() + got.keys())
-                for key in total_keys:
+                missing = set(db.keys()) - set(got.keys())
+                self.report[component] = {
+                    "total": len(got.keys())
+                }
+                if len(missing) > 0:
+                    self.report[component].update({
+                        "missing": len(missing),
+                        "missing_names" : missing
+                        }
+                    )
+                corrupt = set()
+                for key in got.keys():
                     if got[key] != db[key]:
-                        print ("{0}/{1} is not equal".format(component, key))
+                        corrupt.add(key)
+                if len(corrupt) > 0:
+                    self.report[component].update({
+                        "corrupt": len(corrupt),
+                        "corrupt_names": corrupt
+                    })
             except KeyError as e:
-                print (e)
+                pass
 
     def _make_report(self):
+        print (self.report)
         pass
 
     def do(self):
