@@ -12,7 +12,23 @@ components = [
     "cinderclient",
     "glance",
     "glanceclient",
+    "glance_store",
+    "swift",
+    "swift3",
+    "swiftclient",
+    "heat",
+    "heatclient",
+    "horizon",
+    "oslo",
+    "murano",
+    "muranoclient",
+    "muranodashboard",
+    "sahara",
+    "ceilometerclient",
+    "ceilometer",
+    "saharaclient",
     "keystone",
+    "keystonemiddleware",
     "keystoneclient"
 ]
 
@@ -21,10 +37,11 @@ def usage(err=None):
         print ("Error: " + err)
     print("""
 MOS release consistency checker.
-Opts
+Options
 ====
     --release      Set Fuel release
     --filename     Set name of file to use as a database
+    --os           Set os version (centos/ubuntu)
 
 Usage
 =====
