@@ -71,7 +71,7 @@ class Gatherer(object):
             with open(self.cfg['filename'], 'r') as fp:
                 self.cfg['data'] = json.load(fp)
         except:
-            self.cfg['data'] = self.__prepare_structure()
+            self.cfg['data'] = self._prepare_structure()
 
     def _prepare_structure(self):
         data = dict()
