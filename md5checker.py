@@ -135,10 +135,10 @@ class Gatherer(object):
 
         if remote:
             prefix = ["ssh", "-t", remote[0]]
-            postfix = ["'/usr/bin/md5sum' '{}' ';'",]
+            postfix = ["'/usr/bin/md5sum' '{}' ';' 2> /dev/null",]
             os_version = remote[1]
-            self.cfg['data'][self.cfg['release']] = {remote:{}}
-            data = self.cfg['data'][self.cfg['release']][remote]
+            self.cfg['data'][self.cfg['release']] = {remote[0]:{}}
+            data = self.cfg['data'][self.cfg['release']][remote[0]]
         else:
             os_version = self.cfg['os']
             data = self.cfg['data'][self.cfg['release']]
@@ -196,7 +196,7 @@ class Checker(Gatherer):
 
 
     def _check(self, node):
-        self.report = {node[0]:{}}
+        self.report.update({node[0]:{}})
         for component in components:
             try:
                 db = self.old_cfg['data'][self.cfg['release']][component]
