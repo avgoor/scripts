@@ -134,21 +134,25 @@ class Gatherer(object):
     def _gather(self, remote=None):
 
         if remote:
-            cmd = ["ssh", "-t", remote[0], "/usr/bin/find", fdir, '-name',
-                '*.py', '-exec', '/usr/bin/md5sum {} ;']
+            prefix = ["ssh", "-t", remote[0]]
+            postfix = ['/usr/bin/md5sum {} ;',]
             os_version = remote[1]
             self.cfg['data'][self.cfg['release']] = {remote:{}}
             data = self.cfg['data'][self.cfg['release']][remote]
         else:
-            cmd = ["/usr/bin/find", fdir, '-name', '*.py',
-                   '-exec', '/usr/bin/md5sum','{}',';']
             os_version = self.cfg['os']
             data = self.cfg['data'][self.cfg['release']]
+            prefix = []
+            postfix = ['/usr/bin/md5sum', '{}', ';']
 
         for component in components:
-            fdir = self.cfg['path'][os_version] + "/" + \
-                component + "/"
-           run = subprocess.Popen(
+            fdir = self.cfg['path'][os_version] + "/" + component + "/"
+
+            cmd = prefix + ["/usr/bin/find", fdir, '-name', '*.py',
+                   '-exec'] + postfix
+
+            print (cmd)
+            run = subprocess.Popen(
                 cmd,
                 stdin=None,
                 stdout=subprocess.PIPE,
@@ -196,7 +200,7 @@ class Checker(Gatherer):
         for component in components:
             try:
                 db = self.old_cfg['data'][self.cfg['release']][component]
-                got = self.cfg['data'][self.cfg['release']][node[0][component]
+                got = self.cfg['data'][self.cfg['release']][node[0]][component]
                 missing = set(db.keys()) - set(got.keys())
                 self.report[node[0]][component] = {
                     "total": len(got.keys())
