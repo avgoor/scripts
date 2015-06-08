@@ -135,7 +135,7 @@ class Gatherer(object):
 
         if remote:
             prefix = ["ssh", "-t", remote[0]]
-            postfix = ['/usr/bin/md5sum {} ;',]
+            postfix = ["'/usr/bin/md5sum' '{}' ';'",]
             os_version = remote[1]
             self.cfg['data'][self.cfg['release']] = {remote:{}}
             data = self.cfg['data'][self.cfg['release']][remote]
