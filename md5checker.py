@@ -165,7 +165,13 @@ class Gatherer(object):
             if out:
                 tmp = out.split("  ")
                 md5 = tmp[0]
-                fl = tmp[1].strip().replace(fdir, '')
+                comp_tmp = tmp[1].strip().replace(
+                    self.cfg['path'][os_version] + "/",
+                    ''
+                )
+                pos = comp_tmp.find("/")
+                comp = comp_tmp[0:pos]
+                fl = comp_tmp[pos+1:]
                 try:
                     data[component][fl] = md5
                 except KeyError:
