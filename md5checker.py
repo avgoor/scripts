@@ -132,7 +132,6 @@ class Gatherer(object):
         return data
 
     def _gather(self, remote=None):
-
         if remote:
             prefix = ["ssh", "-t", remote[0]]
             postfix = ["'/usr/bin/md5sum' '{}' ';' 2> /dev/null",]
@@ -151,7 +150,6 @@ class Gatherer(object):
         cmd = prefix + ["/usr/bin/find", fdir, '-name', '*.py',
                '-exec'] + postfix
 
-        print (cmd)
         run = subprocess.Popen(
             cmd,
             stdin=None,
@@ -231,6 +229,13 @@ class Checker(Gatherer):
                 pass
 
     def _make_report(self):
+        for k,v in self.report:
+            print (k)
+            if isinstance(v, dict):
+                for l,m in v:
+                    print (l,m)
+            else:
+                print (v)
         print (self.report)
         pass
 
