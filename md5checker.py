@@ -136,7 +136,7 @@ class Gatherer(object):
             prefix = ["ssh", "-t", remote[0]]
             postfix = ["'/usr/bin/md5sum' '{}' ';' 2> /dev/null",]
             os_version = remote[1]
-            self.cfg['data'][self.cfg['release']] = {remote[0]:{}}
+            self.cfg['data'][self.cfg['release']].update({remote[0]:{}})
             data = self.cfg['data'][self.cfg['release']][remote[0]]
         else:
             os_version = self.cfg['os']
@@ -147,7 +147,7 @@ class Gatherer(object):
         fdir = ""
         for component in components:
             fdir += self.cfg['path'][os_version] + "/" + component + "/ "
-        cmd = prefix + ["/usr/bin/find", fdir, '-name', '*.py',
+        cmd = prefix + ["/usr/bin/find", fdir, '-name', "'*.py'",
                '-exec'] + postfix
 
         run = subprocess.Popen(
@@ -229,15 +229,13 @@ class Checker(Gatherer):
                 pass
 
     def _make_report(self):
-        for k,v in self.report:
-            print (k)
-            if isinstance(v, dict):
-                for l,m in v:
-                    print (l,m)
+        for node in self.report.keys():
+            print ("Report for: " + node)
+            if self.report[node] is None:
+                print (">>>> NO DATA <<<<")
             else:
-                print (v)
-        print (self.report)
-        pass
+                for c in self.report[node].keys():
+                    print (c, self.report[node][c])
 
     def _get_nodes_json(self):
 
