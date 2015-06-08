@@ -83,6 +83,8 @@ def opts_parse():
             "centos": "/usr/lib/python2.6/site-packages"
         },
         "filename": "md5checker.dat",
+        "env": 1,
+        "all_envs": False,
         "action": "check"
     }
     if len(sys.argv) < 2:
@@ -102,6 +104,10 @@ def opts_parse():
             cfg['password'] = opt.split("=")[1]
         if '--tenant' in opt:
             cfg['tenant'] = opt.split("=")[1]
+        if '--env' in opt:
+            cfg['env'] = int(opt.split("=")[1])
+        if '--all-envs' in opt:
+            cfg['all_envs'] = True
 
     return cfg
 
@@ -214,7 +220,7 @@ class Checker(Gatherer):
 
         req = urllib2.Request('http://172.16.59.34:5000/v2.0/tokens')
         req.add_header('Content-Type', 'application/json')
-        req.add_data('
+        req.add_data("""
             {"auth":{
                 "passwordCredentials":
                 {
@@ -223,7 +229,7 @@ class Checker(Gatherer):
                 },
                 "tenantName":"{tenant}"
             }}
-        '.format(psw=psw, uname=uname, tenant=tenant))
+        """.format(psw=psw, uname=uname, tenant=tenant))
         token = json.load(urllib2.urlopen(req))['access']['token']['id']
         req = urllib2.Request('http://172.16.59.34:8000/api/v1/nodes')
         req.add_header('X-Auth-Token', token)
