@@ -132,10 +132,21 @@ class Gatherer(object):
         return data
 
     def _gather(self, remote=None):
+
+        if remote:
+            precmd = ["ssh", "-t", remote[0]]
+            os_version = remote[1]
+            self.cfg['data'][self.cfg['release']] = {remote:{}}
+            data = self.cfg['data'][self.cfg['release']][remote]
+        else:
+            precmd = []
+            os_version = self.cfg['os']
+            data = self.cfg['data'][self.cfg['release']]
+
         for component in components:
-            fdir = self.cfg['path'][self.cfg['os']] + "/" + \
+            fdir = self.cfg['path'][os_version] + "/" + \
                 component + "/"
-            cmd = ["/usr/bin/find", fdir, '-name', '*.py',
+            cmd = precmd + ["/usr/bin/find", fdir, '-name', '*.py',
                    '-exec', '/usr/bin/md5sum','{}',';']
             run = subprocess.Popen(
                 cmd,
@@ -152,9 +163,9 @@ class Gatherer(object):
                     md5 = tmp[0]
                     fl = tmp[1].strip().replace(fdir, '')
                     try:
-                        self.cfg['data'][self.cfg['release']][component][fl] = md5
+                        data[component][fl] = md5
                     except KeyError:
-                        self.cfg['data'][self.cfg['release']].update({component:{fl:md5}})
+                        data.update({component:{fl:md5}})
 
     def _store_gathered(self):
         if self.cfg['data']:
@@ -180,18 +191,18 @@ class Checker(Gatherer):
             usage("Target release is not in database!")
 
 
-    def _check(self):
-        self.report = dict()
+    def _check(self, node):
+        self.report = {node[0]:{}}
         for component in components:
             try:
                 db = self.old_cfg['data'][self.cfg['release']][component]
-                got = self.cfg['data'][self.cfg['release']][component]
+                got = self.cfg['data'][self.cfg['release']][node[0][component]
                 missing = set(db.keys()) - set(got.keys())
-                self.report[component] = {
+                self.report[node[0]][component] = {
                     "total": len(got.keys())
                 }
                 if len(missing) > 0:
-                    self.report[component].update({
+                    self.report[node[0]][component].update({
                         "missing": len(missing),
                         "missing_names" : missing
                         }
@@ -201,7 +212,7 @@ class Checker(Gatherer):
                     if got[key] != db[key]:
                         corrupt.add(key)
                 if len(corrupt) > 0:
-                    self.report[component].update({
+                    self.report[node[0]][component].update({
                         "corrupt": len(corrupt),
                         "corrupt_names": corrupt
                     })
@@ -213,7 +224,7 @@ class Checker(Gatherer):
         pass
 
     def _get_nodes_json(self):
-        
+
         psw = self.cfg['password']
         uname = self.cfg['username']
         tenant = self.cfg['tenant']
@@ -246,8 +257,9 @@ class Checker(Gatherer):
 
     def do(self):
         to_check = self._find_nodes()
-        self._gather()
-        self._check()
+        for node in to_check:
+            self._gather(node)
+            self._check(node)
         self._make_report()
 
 
