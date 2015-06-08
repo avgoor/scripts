@@ -145,31 +145,31 @@ class Gatherer(object):
             prefix = []
             postfix = ['/usr/bin/md5sum', '{}', ';']
 
+        fdir = ""
         for component in components:
-            fdir = self.cfg['path'][os_version] + "/" + component + "/"
+            fdir += self.cfg['path'][os_version] + "/" + component + "/ "
+        cmd = prefix + ["/usr/bin/find", fdir, '-name', '*.py',
+               '-exec'] + postfix
 
-            cmd = prefix + ["/usr/bin/find", fdir, '-name', '*.py',
-                   '-exec'] + postfix
-
-            print (cmd)
-            run = subprocess.Popen(
-                cmd,
-                stdin=None,
-                stdout=subprocess.PIPE,
-                stderr=None
-            )
-            while True:
-                out = run.stdout.readline()
-                if out == '' and run.poll() is not None:
-                    break
-                if out:
-                    tmp = out.split("  ")
-                    md5 = tmp[0]
-                    fl = tmp[1].strip().replace(fdir, '')
-                    try:
-                        data[component][fl] = md5
-                    except KeyError:
-                        data.update({component:{fl:md5}})
+        print (cmd)
+        run = subprocess.Popen(
+            cmd,
+            stdin=None,
+            stdout=subprocess.PIPE,
+            stderr=None
+        )
+        while True:
+            out = run.stdout.readline()
+            if out == '' and run.poll() is not None:
+                break
+            if out:
+                tmp = out.split("  ")
+                md5 = tmp[0]
+                fl = tmp[1].strip().replace(fdir, '')
+                try:
+                    data[component][fl] = md5
+                except KeyError:
+                    data.update({component:{fl:md5}})
 
     def _store_gathered(self):
         if self.cfg['data']:
