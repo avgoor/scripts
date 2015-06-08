@@ -173,9 +173,9 @@ class Gatherer(object):
                 comp = comp_tmp[0:pos]
                 fl = comp_tmp[pos+1:]
                 try:
-                    data[component][fl] = md5
+                    data[comp][fl] = md5
                 except KeyError:
-                    data.update({component:{fl:md5}})
+                    data.update({comp:{fl:md5}})
 
     def _store_gathered(self):
         if self.cfg['data']:
@@ -189,6 +189,7 @@ class Gatherer(object):
 
 class Checker(Gatherer):
     def __init__(self, cfg):
+        self.report = dict()
         self.cfg = dict(cfg)
         self.cfg['data'] = self._prepare_structure()
         self.old_cfg = dict(cfg)
