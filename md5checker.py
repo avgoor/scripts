@@ -131,7 +131,7 @@ class Gatherer(object):
         data[self.cfg['release']] = dict()
         return data
 
-    def _gather(self):
+    def _gather(self, remote=None):
         for component in components:
             fdir = self.cfg['path'][self.cfg['os']] + "/" + \
                 component + "/"
@@ -212,7 +212,7 @@ class Checker(Gatherer):
         print (self.report)
         pass
 
-    def get_nodes_json(self):
+    def _get_nodes_json(self):
         
         psw = self.cfg['password']
         uname = self.cfg['username']
@@ -221,13 +221,14 @@ class Checker(Gatherer):
         req = urllib2.Request('http://172.16.59.34:5000/v2.0/tokens')
         req.add_header('Content-Type', 'application/json')
         req.add_data("""
-            {"auth":{
-                "passwordCredentials":
-                {
-                    "password":"{psw}",
-                    "username":"{uname}"
-                },
+            {{"auth":{{
+                    "passwordCredentials":
+                        {{
+                            "password":"{psw}",
+                            "username":"{uname}"
+                        }},
                 "tenantName":"{tenant}"
+                }}
             }}
         """.format(psw=psw, uname=uname, tenant=tenant))
         token = json.load(urllib2.urlopen(req))['access']['token']['id']
@@ -235,7 +236,16 @@ class Checker(Gatherer):
         req.add_header('X-Auth-Token', token)
         return json.load(urllib2.urlopen(req))
 
+    def _find_nodes(self):
+        selected_nodes = list()
+        for node in self._get_nodes_json():
+            if node['cluster'] == self.cfg['env'] or self.cfg['all_envs'] is True:
+                selected_nodes.append((node['ip'], node['os_platform']))
+        return (selected_nodes)
+
+
     def do(self):
+        to_check = self._find_nodes()
         self._gather()
         self._check()
         self._make_report()
