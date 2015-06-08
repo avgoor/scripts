@@ -134,21 +134,21 @@ class Gatherer(object):
     def _gather(self, remote=None):
 
         if remote:
-            precmd = ["ssh", "-t", remote[0]]
+            cmd = ["ssh", "-t", remote[0], "/usr/bin/find", fdir, '-name',
+                '*.py', '-exec', '/usr/bin/md5sum {} ;']
             os_version = remote[1]
             self.cfg['data'][self.cfg['release']] = {remote:{}}
             data = self.cfg['data'][self.cfg['release']][remote]
         else:
-            precmd = []
+            cmd = ["/usr/bin/find", fdir, '-name', '*.py',
+                   '-exec', '/usr/bin/md5sum','{}',';']
             os_version = self.cfg['os']
             data = self.cfg['data'][self.cfg['release']]
 
         for component in components:
             fdir = self.cfg['path'][os_version] + "/" + \
                 component + "/"
-            cmd = precmd + ["/usr/bin/find", fdir, '-name', '*.py',
-                   '-exec', '/usr/bin/md5sum','{}',';']
-            run = subprocess.Popen(
+           run = subprocess.Popen(
                 cmd,
                 stdin=None,
                 stdout=subprocess.PIPE,
