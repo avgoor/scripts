@@ -1,7 +1,23 @@
+#!/usr/bin/env python
+# Copyright 2015 Mirantis, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
 import json
 import os
 import subprocess
 import sys
+import urllib2
 
 components = [
     "nova",
@@ -59,6 +75,9 @@ def opts_parse():
         "version": "0.1",
         "release": None,
         "os": "ubuntu",
+        "username" : "admin",
+        "password": "admin",
+        "tenant": "admin",
         "path": {
             "ubuntu": "/usr/lib/python2.7/dist-packages",
             "centos": "/usr/lib/python2.6/site-packages"
@@ -77,8 +96,15 @@ def opts_parse():
             cfg['os'] = opt.split("=")[1]
         if '--filename' in opt:
             cfg['filename'] = opt.split("=")[1]
+        if '--user' in opt:
+            cfg['username'] = opt.split("=")[1]
+        if '--pass' in opt:
+            cfg['password'] = opt.split("=")[1]
+        if '--tenant' in opt:
+            cfg['tenant'] = opt.split("=")[1]
 
     return cfg
+
 
 
 class Gatherer(object):
@@ -89,6 +115,8 @@ class Gatherer(object):
                 self.cfg['data'] = json.load(fp)
         except:
             self.cfg['data'] = self._prepare_structure()
+        if self.cfg['release'] is None:
+            usage("--release must be set!")
         if self.cfg['release'] not in self.cfg['data'].keys():
             self.cfg['data'][self.cfg['release']] = dict()
 
@@ -177,6 +205,29 @@ class Checker(Gatherer):
     def _make_report(self):
         print (self.report)
         pass
+
+    def get_nodes_json(self):
+        
+        psw = self.cfg['password']
+        uname = self.cfg['username']
+        tenant = self.cfg['tenant']
+
+        req = urllib2.Request('http://172.16.59.34:5000/v2.0/tokens')
+        req.add_header('Content-Type', 'application/json')
+        req.add_data('
+            {"auth":{
+                "passwordCredentials":
+                {
+                    "password":"{psw}",
+                    "username":"{uname}"
+                },
+                "tenantName":"{tenant}"
+            }}
+        '.format(psw=psw, uname=uname, tenant=tenant))
+        token = json.load(urllib2.urlopen(req))['access']['token']['id']
+        req = urllib2.Request('http://172.16.59.34:8000/api/v1/nodes')
+        req.add_header('X-Auth-Token', token)
+        return json.load(urllib2.urlopen(req))
 
     def do(self):
         self._gather()
