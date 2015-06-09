@@ -136,8 +136,7 @@ class Gatherer(object):
             prefix = ["ssh", "-t", remote[0]]
             postfix = ["'/usr/bin/md5sum' '{}' ';' 2> /dev/null",]
             os_version = remote[1]
-            self.cfg['data'][self.cfg['release']].update({remote[0]:{}})
-            data = self.cfg['data'][self.cfg['release']][remote[0]]
+            data = dict ({[remote[0]]:{}})
         else:
             os_version = self.cfg['os']
             data = self.cfg['data'][self.cfg['release']]
@@ -174,6 +173,9 @@ class Gatherer(object):
                     data[comp][fl] = md5
                 except KeyError:
                     data.update({comp:{fl:md5}})
+        if remote:
+            return data
+
 
     def _store_gathered(self):
         if self.cfg['data']:
@@ -200,18 +202,19 @@ class Checker(Gatherer):
             usage("Target release is not in database!")
 
 
-    def _check(self, node):
-        self.report.update({node[0]:{}})
+    def _check(self, data):
+        ip = data.keys()[0]
+        self.report.update({ip:{}})
         for component in components:
             try:
                 db = self.old_cfg['data'][self.cfg['release']][component]
-                got = self.cfg['data'][self.cfg['release']][node[0]][component]
+                got = data[ip][component]
                 missing = set(db.keys()) - set(got.keys())
-                self.report[node[0]][component] = {
+                self.report[ip]][component] = {
                     "total": len(got.keys())
                 }
                 if len(missing) > 0:
-                    self.report[node[0]][component].update({
+                    self.report[ip]][component].update({
                         "missing": len(missing),
                         "missing_names" : missing
                         }
@@ -221,7 +224,7 @@ class Checker(Gatherer):
                     if got[key] != db[key]:
                         corrupt.add(key)
                 if len(corrupt) > 0:
-                    self.report[node[0]][component].update({
+                    self.report[ip][component].update({
                         "corrupt": len(corrupt),
                         "corrupt_names": corrupt
                     })
@@ -272,8 +275,9 @@ class Checker(Gatherer):
     def do(self):
         to_check = self._find_nodes()
         for node in to_check:
-            self._gather(node)
-            self._check(node)
+            tmp = self._gather(node)
+            self._check(tmp)
+            tmp.clear()
         self._make_report()
 
 
