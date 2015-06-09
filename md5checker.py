@@ -18,6 +18,7 @@ import os
 import subprocess
 import sys
 import urllib2
+import textwrap
 
 components = [
     "nova",
@@ -85,7 +86,8 @@ def opts_parse():
         "filename": "md5checker.dat",
         "env": 1,
         "all_envs": False,
-        "action": "check"
+        "action": "check",
+        "verbose": False
     }
     if len(sys.argv) < 2:
         usage("At least --release must be set!")
@@ -108,6 +110,8 @@ def opts_parse():
             cfg['env'] = int(opt.split("=")[1])
         if '--all-envs' in opt:
             cfg['all_envs'] = True
+        if '--verbose' in opt:
+            cfg['verbose'] = True
 
     return cfg
 
@@ -136,7 +140,7 @@ class Gatherer(object):
             prefix = ["ssh", "-t", remote[0]]
             postfix = ["'/usr/bin/md5sum' '{}' ';' 2> /dev/null",]
             os_version = remote[1]
-            data = dict ({[remote[0]]:{}})
+            data = dict()
         else:
             os_version = self.cfg['os']
             data = self.cfg['data'][self.cfg['release']]
@@ -202,19 +206,19 @@ class Checker(Gatherer):
             usage("Target release is not in database!")
 
 
-    def _check(self, data):
-        ip = data.keys()[0]
+    def _check(self, data, node):
+        ip = node[0]
         self.report.update({ip:{}})
         for component in components:
             try:
                 db = self.old_cfg['data'][self.cfg['release']][component]
-                got = data[ip][component]
+                got = data[component]
                 missing = set(db.keys()) - set(got.keys())
-                self.report[ip]][component] = {
+                self.report[ip][component] = {
                     "total": len(got.keys())
                 }
                 if len(missing) > 0:
-                    self.report[ip]][component].update({
+                    self.report[ip][component].update({
                         "missing": len(missing),
                         "missing_names" : missing
                         }
@@ -233,12 +237,46 @@ class Checker(Gatherer):
 
     def _make_report(self):
         for node in self.report.keys():
-            print ("Report for: " + node)
+            print ("\nReport for: " + node + " " + "=" * 56)
             if self.report[node] is None:
                 print (">>>> NO DATA <<<<")
             else:
                 for c in self.report[node].keys():
-                    print (c, self.report[node][c])
+                    total = self.report[node][c]['total']
+                    if self.report[node][c].has_key('missing'):
+                        missed = self.report[node][c]['missing']
+                    else:
+                        missed = 0
+                    if self.report[node][c].has_key('corrupt'):
+                        corrupt = self.report[node][c]['corrupt']
+                    else:
+                        corrupt = 0
+                    if missed == 0 and corrupt == 0:
+                        msg = "{cmp:20}  =OK (Tested files:{cnt:4})".format(
+                            cmp=c, cnt=total)
+                    else:
+                        msg = "{cmp:20}  =FAILED (Tested files:{cnt:4}/Missing:{miss:4}/Corrupt:{corr:4})".format(
+                            cmp=c, cnt=total, miss=missed, corr=corrupt)
+                    print (msg)
+                    if self.cfg['verbose'] and self.report[node][c].has_key('corrupt_names'):
+                        print ("    Corrupted files:")
+                        print (textwrap.fill("{0}".format(
+                            ", ".join(l for l in self.report[node][c]['corrupt_names'])),
+                            initial_indent="    ",
+                            subsequent_indent="    ",
+                            width=80
+                            ))
+                        print("")
+                    if self.cfg['verbose'] and self.report[node][c].has_key('missing_names'):
+                        print ("    Missing files:")
+                        print (textwrap.fill("{0}".format(
+                            ", ".join(l for l in self.report[node][c]['missing_names'])),
+                            initial_indent="    ",
+                            subsequent_indent="    ",
+                            width=80
+                            ))
+                        print("")
+
 
     def _get_nodes_json(self):
 
@@ -276,7 +314,7 @@ class Checker(Gatherer):
         to_check = self._find_nodes()
         for node in to_check:
             tmp = self._gather(node)
-            self._check(tmp)
+            self._check(tmp, node)
             tmp.clear()
         self._make_report()
 
