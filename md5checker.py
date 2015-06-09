@@ -137,31 +137,26 @@ class Gatherer(object):
 
     def _gather(self, remote=None):
         if remote:
-            prefix = ["ssh", "-t", remote[0]]
-            postfix = ["'/usr/bin/md5sum' '{}' ';' 2> /dev/null",]
             os_version = remote[1]
             data = dict()
+            fdir = " ".join(self.cfg['path'][os_version] + "/" + l for l in components)
+            cmd = ["ssh {1} \"/usr/bin/find {0} -name '*.py' -exec 'md5sum' '{{}}' ';'\"".format(fdir, remote[0])]
         else:
             os_version = self.cfg['os']
             data = self.cfg['data'][self.cfg['release']]
-            prefix = []
-            postfix = ['/usr/bin/md5sum', '{}', ';']
-
-        fdir = ""
-        for component in components:
-            fdir += self.cfg['path'][os_version] + "/" + component + "/ "
-        cmd = prefix + ["/usr/bin/find", fdir, '-name', "'*.py'",
-               '-exec'] + postfix
-
+            fdir = " ".join(self.cfg['path'][os_version] + "/" + l for l in components)
+            cmd = ["/usr/bin/find {0} -name \'*.py\' -exec \'md5sum\' \'{{}}\' \';\'".format(fdir)]
         run = subprocess.Popen(
             cmd,
             stdin=None,
             stdout=subprocess.PIPE,
-            stderr=None
+            stderr=None,
+            shell=True
         )
         while True:
             out = run.stdout.readline()
-            if out == '' and run.poll() is not None:
+ #           print out
+	    if out == '' and run.poll() is not None:
                 break
             if out:
                 tmp = out.split("  ")
@@ -284,7 +279,7 @@ class Checker(Gatherer):
         uname = self.cfg['username']
         tenant = self.cfg['tenant']
 
-        req = urllib2.Request('http://172.16.59.34:5000/v2.0/tokens')
+        req = urllib2.Request('http://127.0.0.1:5000/v2.0/tokens')
         req.add_header('Content-Type', 'application/json')
         req.add_data("""
             {{"auth":{{
@@ -298,7 +293,7 @@ class Checker(Gatherer):
             }}
         """.format(psw=psw, uname=uname, tenant=tenant))
         token = json.load(urllib2.urlopen(req))['access']['token']['id']
-        req = urllib2.Request('http://172.16.59.34:8000/api/v1/nodes')
+        req = urllib2.Request('http://127.0.0.1:8000/api/v1/nodes')
         req.add_header('X-Auth-Token', token)
         return json.load(urllib2.urlopen(req))
 
