@@ -50,24 +50,30 @@ components = [
 ]
 
 def usage(err=None):
-    if err:
-        print ("Error: " + err)
     print("""
 MOS release consistency checker.
 Options
 ====
+    --check        Do the check
     --release      Set Fuel release
     --filename     Set name of file to use as a database
     --os           Set os version (centos/ubuntu)
+    --user         Username to use in keystone
+    --pass         Password to use in keystone
+    --tenant       Tenant to use in keystone
+    --env-id       Environment ID to check
+    --all-envs     Check all environments
+    --verbose      Print corrupted/missing file names
 
 Usage
 =====
     Checking consistency of MOS assuming that it is Fuel 6.0 release
-    python md5checker.py --release=6.0 --os=ubuntu --check
-
-    Gathering data for database assuming that the release is 6.0-mu4
-    python md5checker.py --release=6.0-mu4 --os=centos --gather
+    and keystone credentials are `admin`:`s3kr3tp@ss` from tenant `admin`
+    python md5checker.py --release=6.0 --os=ubuntu --check \\
+                         --tenant=admin --user=admin --pass=s3kr3tp@ss
     """)
+    if err:
+        print ("\nError: " + err)
     sys.exit(1)
 
 def opts_parse():
@@ -274,28 +280,30 @@ class Checker(Gatherer):
 
 
     def _get_nodes_json(self):
+        try:
+            psw = self.cfg['password']
+            uname = self.cfg['username']
+            tenant = self.cfg['tenant']
 
-        psw = self.cfg['password']
-        uname = self.cfg['username']
-        tenant = self.cfg['tenant']
-
-        req = urllib2.Request('http://127.0.0.1:5000/v2.0/tokens')
-        req.add_header('Content-Type', 'application/json')
-        req.add_data("""
-            {{"auth":{{
-                    "passwordCredentials":
-                        {{
-                            "password":"{psw}",
-                            "username":"{uname}"
-                        }},
-                "tenantName":"{tenant}"
+            req = urllib2.Request('http://127.0.0.1:5000/v2.0/tokens')
+            req.add_header('Content-Type', 'application/json')
+            req.add_data("""
+                {{"auth":{{
+                        "passwordCredentials":
+                            {{
+                                "password":"{psw}",
+                                "username":"{uname}"
+                            }},
+                    "tenantName":"{tenant}"
+                    }}
                 }}
-            }}
-        """.format(psw=psw, uname=uname, tenant=tenant))
-        token = json.load(urllib2.urlopen(req))['access']['token']['id']
-        req = urllib2.Request('http://127.0.0.1:8000/api/v1/nodes')
-        req.add_header('X-Auth-Token', token)
-        return json.load(urllib2.urlopen(req))
+            """.format(psw=psw, uname=uname, tenant=tenant))
+            token = json.load(urllib2.urlopen(req))['access']['token']['id']
+            req = urllib2.Request('http://127.0.0.1:8000/api/v1/nodes')
+            req.add_header('X-Auth-Token', token)
+            return json.load(urllib2.urlopen(req))
+        except Exception as e:
+            usage("Can't connect to keystone/fuel at http://127.0.0.1")
 
     def _find_nodes(self):
         selected_nodes = list()
