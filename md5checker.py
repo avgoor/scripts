@@ -38,6 +38,7 @@ components = [
     "horizon",
     "oslo",
     "murano",
+    "muranoapi",
     "muranoclient",
     "muranodashboard",
     "sahara",
@@ -161,8 +162,7 @@ class Gatherer(object):
         )
         while True:
             out = run.stdout.readline()
- #           print out
-	    if out == '' and run.poll() is not None:
+            if out == '' and run.poll() is not None:
                 break
             if out:
                 tmp = out.split("  ")
