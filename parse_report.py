@@ -7,8 +7,6 @@ import yaml
 
 def get_report():
     """
-    Takes filename of astute's report yaml
-    :type filename: str
     :rtype: list
     """
     tmp = yaml.load(sys.stdin)
@@ -18,7 +16,7 @@ def get_report():
 def _is_noop_report(report):
     """
     Takes report and checks for needed fields
-    :param report: - dict of dicts
+    :param report: list
     :rtype: bool
     """
     try:
@@ -31,7 +29,8 @@ if __name__ == "__main__":
     out = []
     for a in r1:
         out.append("\nTask {}: \n".format(a['task_name']))
-        for r in a['summary']['raw_report']:
-            out.append(" | {} : {}\n".format(r['source'], r['message']))
+        out.extend([" | {} : {}\n".format(x['source'], x['message'])
+                    for x in a['summary']['raw_report']
+                    if 'should be' in x['message']])
 
     print "".join(out)
