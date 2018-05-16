@@ -1,5 +1,5 @@
-import gzip
 import io
+import gzip
 import os
 import re
 import urllib2
@@ -12,7 +12,7 @@ def get_ubuntu_packages():
                  "/9.0-latest/dists/mos9.0-proposed/main/binary-amd64/Packages"
 
     with closing(urllib2.urlopen(mirror_url)) as data:
-        expr = re.compile("^Package:\s(.*).*\n.*\nVersion: (.*)$", re.M)
+        expr = re.compile(r"^Package:\s(.*)\n(?:.*\n)?Version:\s(.*)$", re.M)
         matched = re.findall(expr, data.read())
     return matched
 
